@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { getOrders } from '../services'
+import { getOrders } from '../services/api'
 
 export function useOrders(barId) {
   return useQuery({

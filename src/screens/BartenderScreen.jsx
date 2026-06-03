@@ -3,6 +3,7 @@ import { Html5Qrcode } from 'html5-qrcode'
 import { fmt } from '../lib/format.js'
 import { useProductMap } from '../hooks/useMenu.js'
 import { useOrders } from '../hooks/useOrders.js'
+import { useDeliveredOrders } from '../hooks/useDeliveredOrders.js'
 import { useAdvanceOrder } from '../hooks/useAdvanceOrder.js'
 import { useMarkDelivered } from '../hooks/useMarkDelivered.js'
 import { ErrorPanel } from '../components/QueryStates.jsx'
@@ -174,18 +175,20 @@ function QRCameraScanner({ onScan }) {
 }
 
 // ── Main screen ───────────────────────────────────────────────
-export default function BartenderScreen({ onBack, scannerPhase, onScannerOpen, onScannerClose, bartenderBar }) {
+export default function BartenderScreen({ onBack, onPaymentSetup, scannerPhase, onScannerOpen, onScannerClose, bartenderBar }) {
   const [tab, setTab] = useState('queue')
-  const [delivered, setDelivered] = useState([])
   const [scannedOrder, setScannedOrder] = useState(null)
   const productMap = useProductMap()
   const resolveItem = makeResolver(productMap)
 
-  const barId = bartenderBar?.id ?? 'north'
+  const barId = bartenderBar?.id ?? null
 
-  const ordersQuery = useOrders(barId)
+  const ordersQuery    = useOrders(barId)
+  const deliveredQuery = useDeliveredOrders(barId)
   const advanceMutation = useAdvanceOrder(barId)
   const deliverMutation = useMarkDelivered(barId)
+
+  const delivered = deliveredQuery.data ?? []
 
   const allOrders = ordersQuery.data ?? []
   const { queueOnly, preparingOnly, readyOrders } = useMemo(() => {
@@ -216,7 +219,6 @@ export default function BartenderScreen({ onBack, scannerPhase, onScannerOpen, o
     if (scannedOrder?.matched) {
       try {
         await deliverMutation.mutateAsync(scannedOrder.matched.id)
-        setDelivered(prev => [scannedOrder.matched, ...prev])
       } catch { /* mutation error surfaces via ordersQuery on next refetch */ }
     }
     setScannedOrder(null)
@@ -380,6 +382,29 @@ export default function BartenderScreen({ onBack, scannerPhase, onScannerOpen, o
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      {/* Bartender action row */}
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'flex-end',
+        gap: 8, padding: '8px 16px',
+        borderBottom: '1px solid var(--border)',
+        background: 'var(--surface)',
+      }}>
+        {onPaymentSetup && (
+          <button
+            onClick={onPaymentSetup}
+            style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-dim)', padding: '6px 10px', borderRadius: 99, border: '1px solid var(--border)' }}
+          >
+            💳 Pagos
+          </button>
+        )}
+        <button
+          onClick={onBack}
+          style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-mute)', padding: '6px 10px', borderRadius: 99, border: '1px solid var(--border)' }}
+        >
+          Cerrar sesión
+        </button>
+      </div>
+
       {/* Tabs */}
       <div style={{ display: 'flex', borderBottom: '1px solid var(--border)' }}>
         {[

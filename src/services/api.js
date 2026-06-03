@@ -1,4 +1,4 @@
-const BASE = import.meta.env.VITE_API_URL
+const BASE = '/api'
 
 async function req(url, opts) {
   const r = await fetch(url, opts)
@@ -13,6 +13,11 @@ export async function getOrders(barId) {
   return r.json()
 }
 
+export async function getDeliveredOrders(barId) {
+  const r = await req(`${BASE}/orders?bar=${barId}&status=delivered`)
+  return r.json()
+}
+
 export async function advanceOrder(id) {
   const r = await req(`${BASE}/orders/${id}/advance`, { method: 'POST' })
   return r.json()
@@ -23,26 +28,30 @@ export async function markDelivered(id) {
   return r.json()
 }
 
-export async function createOrder(items, bar, total) {
+export async function createOrder(items, bar, total, eventId) {
   const r = await req(`${BASE}/orders`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ items, bar, total }),
+    body: JSON.stringify({ items, bar, total, eventId }),
   })
   return r.json()
 }
 
-// Polls the bar's active orders and returns the one matching orderId, or null if delivered/not found.
 export async function getOrderStatus(orderId, barId) {
   const r = await req(`${BASE}/orders?bar=${barId}`)
   const orders = await r.json()
   return orders.find(o => o.id === orderId) ?? null
 }
 
-// ── Static catalog ───────────────────────────────────────────────────────────
+// ── Catalog ──────────────────────────────────────────────────────────────────
 
 export async function getBars() {
   const r = await req(`${BASE}/bars`)
+  return r.json()
+}
+
+export async function getBarsForEvent(eventId) {
+  const r = await req(`${BASE}/events/${eventId}/bars`)
   return r.json()
 }
 
@@ -51,8 +60,10 @@ export async function getCategories() {
   return r.json()
 }
 
-export async function getMenu(barId) {
-  const path = barId ? `${BASE}/bars/${barId}/menu` : `${BASE}/products`
+export async function getMenu(eventId) {
+  const path = eventId
+    ? `${BASE}/events/${eventId}/menu`
+    : `${BASE}/products`
   const r = await req(path)
   return r.json()
 }
@@ -73,4 +84,35 @@ export async function createPaymentPreference(orderId) {
     body: JSON.stringify({ orderId }),
   })
   return r.json()
+}
+
+// ── Auth ─────────────────────────────────────────────────────────────────────
+
+export async function loginBartender(username, password) {
+  const r = await req(`${BASE}/auth/bartender/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password }),
+  })
+  return r.json()
+}
+
+// ── Payment accounts ─────────────────────────────────────────────────────────
+
+export async function getPaymentAccount(eventId) {
+  const r = await req(`${BASE}/events/${eventId}/payment-account`)
+  return r.json()
+}
+
+export async function linkPaymentAccount(eventId, accessToken) {
+  const r = await req(`${BASE}/events/${eventId}/payment-account`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ accessToken }),
+  })
+  return r.json()
+}
+
+export async function unlinkPaymentAccount(eventId) {
+  await req(`${BASE}/events/${eventId}/payment-account`, { method: 'DELETE' })
 }

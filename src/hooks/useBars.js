@@ -1,10 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
-import { getBars } from '../services'
+import { getBars, getBarsForEvent } from '../services/api'
 
-export function useBars() {
+export function useBars(eventId) {
   return useQuery({
-    queryKey: ['bars'],
-    queryFn: getBars,
+    queryKey: ['bars', eventId ?? 'all'],
+    queryFn: () => eventId ? getBarsForEvent(eventId) : getBars(),
     staleTime: 5 * 60_000,
   })
 }

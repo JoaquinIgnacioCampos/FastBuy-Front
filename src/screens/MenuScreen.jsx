@@ -6,7 +6,7 @@ import { Loading, ErrorPanel } from '../components/QueryStates.jsx'
 import ProductImage from '../components/ProductImage.jsx'
 
 export default function MenuScreen({ cart, onCartChange, onCheckout, event }) {
-  const menu = useMenu()
+  const menu = useMenu(event?.id)
   const categories = useCategories()
 
   // First non-"all" category becomes the initial tab once data is loaded.

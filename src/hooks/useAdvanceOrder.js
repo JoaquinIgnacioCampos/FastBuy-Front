@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { advanceOrder } from '../services'
+import { advanceOrder } from '../services/api'
 
 const NEXT_STATUS = { queue: 'preparing', preparing: 'ready' }
 

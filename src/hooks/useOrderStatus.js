@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { getOrderStatus } from '../services'
+import { getOrderStatus } from '../services/api'
 
 export function useOrderStatus(orderId, barId, { enabled = true } = {}) {
   return useQuery({
