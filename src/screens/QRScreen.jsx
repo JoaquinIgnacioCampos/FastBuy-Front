@@ -1,18 +1,26 @@
+import { useMemo } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
-import { PRODUCTS, fmt } from '../data'
+import { fmt } from '../lib/format.js'
+import { useProductMap, resolveProduct } from '../hooks/useMenu.js'
 
-export default function QRScreen({ cart, phase, bar, onConfirmed }) {
-  const total = PRODUCTS.reduce((s, p) => s + (cart[p.id] || 0) * p.price, 0)
-  const orderId = `FB${Math.floor(total / 100).toString().padStart(3, '0')}`
+export default function QRScreen({ cart, phase, bar, activeOrder, event, onConfirmed }) {
+  const productMap = useProductMap()
+
+  const cartLines = useMemo(
+    () => Object.entries(cart)
+      .filter(([, qty]) => qty > 0)
+      .map(([pid, qty]) => ({ ...resolveProduct(productMap, pid), qty })),
+    [cart, productMap]
+  )
+  const total = cartLines.reduce((s, p) => s + p.price * p.qty, 0)
+
+  // Use real backend ID and items when available, fall back to computed values in demo mode
+  const orderId  = activeOrder?.id    ?? `FB${Math.floor(total / 100).toString().padStart(3, '0')}`
+  const qrItems  = activeOrder?.items ?? cartLines.map(p => ({ pid: p.id, q: p.qty }))
+  const qrTotal  = activeOrder?.total ?? total
 
   // Use product IDs (no emoji/Unicode) to keep the QR code short and reliably scannable
-  const qrValue = JSON.stringify({
-    id: orderId,
-    total,
-    items: PRODUCTS
-      .filter(p => (cart[p.id] || 0) > 0)
-      .map(p => ({ pid: p.id, q: cart[p.id] })),
-  })
+  const qrValue = JSON.stringify({ id: orderId, total: qrTotal, items: qrItems })
 
   if (phase === 'confirmed') {
     return (
@@ -26,7 +34,7 @@ export default function QRScreen({ cart, phase, bar, onConfirmed }) {
         <div style={{ textAlign: 'center' }}>
           <div style={{ fontSize: 24, fontWeight: 800, marginBottom: 8 }}>¡Listo!</div>
           <div style={{ fontSize: 14, color: 'var(--text-dim)', lineHeight: 1.6 }}>
-            Retiro confirmado. Disfrutá el Festival Eclipse 🎉
+            Retiro confirmado. Disfrutá {event?.name ?? 'el evento'} 🎉
           </div>
         </div>
         <div style={{ fontSize: 32 }}>🍺🍹🥃</div>
@@ -66,12 +74,12 @@ export default function QRScreen({ cart, phase, bar, onConfirmed }) {
 
         {/* Order summary */}
         <div className="section-title">Tu pedido</div>
-        {PRODUCTS.filter(p => (cart[p.id] || 0) > 0).map(p => (
+        {cartLines.map(p => (
           <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 20px', borderBottom: '1px solid var(--border)' }}>
             <span style={{ fontSize: 20 }}>{p.emoji}</span>
             <span style={{ flex: 1, fontSize: 14, fontWeight: 600 }}>{p.name}</span>
-            <span style={{ fontSize: 13, color: 'var(--text-dim)' }}>× {cart[p.id]}</span>
-            <span style={{ fontSize: 14, fontWeight: 700 }}>{fmt(p.price * cart[p.id])}</span>
+            <span style={{ fontSize: 13, color: 'var(--text-dim)' }}>× {p.qty}</span>
+            <span style={{ fontSize: 14, fontWeight: 700 }}>{fmt(p.price * p.qty)}</span>
           </div>
         ))}
 
@@ -93,13 +101,6 @@ export default function QRScreen({ cart, phase, bar, onConfirmed }) {
             </div>
           </div>
         </div>
-      </div>
-
-      {/* Demo confirm button */}
-      <div style={{ padding: '12px 20px 28px', borderTop: '1px solid var(--border)' }}>
-        <button className="btn-primary" onClick={onConfirmed}>
-          Simular escaneo de QR ✓
-        </button>
       </div>
     </div>
   )

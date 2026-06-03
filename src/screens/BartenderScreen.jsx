@@ -1,11 +1,19 @@
-import { useState, useEffect, useRef } from 'react'
+import { useMemo, useState, useEffect, useRef } from 'react'
 import { Html5Qrcode } from 'html5-qrcode'
-import { PRODUCTS, fmt } from '../data'
-import { getOrders, advanceOrder, markDelivered as svcMarkDelivered } from '../services'
+import { fmt } from '../lib/format.js'
+import { useProductMap } from '../hooks/useMenu.js'
+import { useOrders } from '../hooks/useOrders.js'
+import { useAdvanceOrder } from '../hooks/useAdvanceOrder.js'
+import { useMarkDelivered } from '../hooks/useMarkDelivered.js'
+import { ErrorPanel } from '../components/QueryStates.jsx'
 
-function resolveItem({ pid, q }) {
-  const p = PRODUCTS.find(pr => pr.id === pid)
-  return p ? { emoji: p.emoji, name: p.name, qty: q } : { emoji: '📦', name: pid, qty: q }
+function makeResolver(productMap) {
+  return ({ pid, q }) => {
+    const p = productMap.get(pid)
+    return p
+      ? { emoji: p.emoji ?? p.image ?? '📦', name: p.name, qty: q }
+      : { emoji: '📦', name: pid, qty: q }
+  }
 }
 
 function itemsAreEqual(a, b) {
@@ -168,32 +176,29 @@ function QRCameraScanner({ onScan }) {
 // ── Main screen ───────────────────────────────────────────────
 export default function BartenderScreen({ onBack, scannerPhase, onScannerOpen, onScannerClose, bartenderBar }) {
   const [tab, setTab] = useState('queue')
-  const [allOrders, setAllOrders] = useState([])
   const [delivered, setDelivered] = useState([])
   const [scannedOrder, setScannedOrder] = useState(null)
+  const productMap = useProductMap()
+  const resolveItem = makeResolver(productMap)
 
   const barId = bartenderBar?.id ?? 'north'
 
-  useEffect(() => {
-    setAllOrders(getOrders(barId))
-  }, [barId])
+  const ordersQuery = useOrders(barId)
+  const advanceMutation = useAdvanceOrder(barId)
+  const deliverMutation = useMarkDelivered(barId)
 
-  const queueOrders    = allOrders.filter(o => o.status === 'queue' || o.status === 'preparing')
-  const doneOrders     = allOrders.filter(o => o.status === 'ready')
-
-  function refreshOrders() {
-    setAllOrders(getOrders(barId))
-  }
-
-  function markReady(id) {
-    advanceOrder(id)
-    refreshOrders()
-  }
+  const allOrders = ordersQuery.data ?? []
+  const { queueOnly, preparingOnly, readyOrders } = useMemo(() => {
+    const queueOnly     = allOrders.filter(o => o.status === 'queue')
+    const preparingOnly = allOrders.filter(o => o.status === 'preparing')
+    const readyOrders   = allOrders.filter(o => o.status === 'ready')
+    return { queueOnly, preparingOnly, readyOrders }
+  }, [allOrders])
 
   function handleQRScan(text) {
     try {
       const data = JSON.parse(text)
-      const matched = doneOrders.find(o => o.id === data.id) ?? doneOrders[0] ?? null
+      const matched = readyOrders.find(o => o.id === data.id) ?? readyOrders[0] ?? null
       const itemsMatch = matched ? itemsAreEqual(data.items ?? [], matched.items) : null
       setScannedOrder({
         id: data.id,
@@ -203,15 +208,16 @@ export default function BartenderScreen({ onBack, scannerPhase, onScannerOpen, o
         itemsMatch,
       })
     } catch {
-      setScannedOrder({ raw: text, matched: doneOrders[0] ?? null, itemsMatch: null })
+      setScannedOrder({ raw: text, matched: readyOrders[0] ?? null, itemsMatch: null })
     }
   }
 
-  function handleConfirmDelivery() {
+  async function handleConfirmDelivery() {
     if (scannedOrder?.matched) {
-      svcMarkDelivered(scannedOrder.matched.id)
-      setDelivered(prev => [scannedOrder.matched, ...prev])
-      refreshOrders()
+      try {
+        await deliverMutation.mutateAsync(scannedOrder.matched.id)
+        setDelivered(prev => [scannedOrder.matched, ...prev])
+      } catch { /* mutation error surfaces via ordersQuery on next refetch */ }
     }
     setScannedOrder(null)
     onScannerClose()
@@ -343,7 +349,7 @@ export default function BartenderScreen({ onBack, scannerPhase, onScannerOpen, o
             <button
               className="btn-primary"
               onClick={() => {
-                const order = doneOrders[0]
+                const order = readyOrders[0]
                 if (order) {
                   const simulatedQR = JSON.stringify({ id: order.id, total: order.total, items: order.items })
                   handleQRScan(simulatedQR)
@@ -362,13 +368,23 @@ export default function BartenderScreen({ onBack, scannerPhase, onScannerOpen, o
   }
 
   // ── Order list ─────────────────────────────────────────────
+  if (ordersQuery.isError) {
+    return (
+      <ErrorPanel
+        title="Sin conexión al servidor"
+        message="No se pudo conectar con el servidor. Verificá que el backend esté corriendo."
+        onRetry={ordersQuery.refetch}
+      />
+    )
+  }
+
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       {/* Tabs */}
       <div style={{ display: 'flex', borderBottom: '1px solid var(--border)' }}>
         {[
-          { id: 'queue',     label: 'En cola',    count: queueOrders.length },
-          { id: 'ready',     label: 'Listos',      count: doneOrders.length },
+          { id: 'queue',     label: 'En cola',    count: queueOnly.length + preparingOnly.length },
+          { id: 'ready',     label: 'Listos',      count: readyOrders.length },
           { id: 'delivered', label: 'Entregados',  count: delivered.length },
         ].map(t => (
           <button
@@ -397,28 +413,48 @@ export default function BartenderScreen({ onBack, scannerPhase, onScannerOpen, o
 
       <div className="screen-body">
         {tab === 'queue' && (
-          queueOrders.length === 0 ? (
+          (queueOnly.length + preparingOnly.length) === 0 ? (
             <div className="empty-state">
               <div className="empty-icon">☕</div>
               <h3>Sin pedidos</h3>
               <p>La cola está vacía. Esperando nuevos pedidos.</p>
             </div>
           ) : (
-            queueOrders.map(order => (
-              <BartenderCard key={order.id} order={order} onAction={() => markReady(order.id)} actionLabel="Marcar listo" actionColor="var(--accent)" />
-            ))
+            <>
+              <SubHeader label="En cola" count={queueOnly.length} hint="Tocá para comenzar a prepararlos" />
+              {queueOnly.map(order => (
+                <BartenderCard
+                  key={order.id}
+                  order={order}
+                  onAction={() => advanceMutation.mutate(order.id)}
+                  actionLabel="Comenzar a preparar"
+                  actionColor="var(--accent)"
+                />
+              ))}
+
+              <SubHeader label="Preparando" count={preparingOnly.length} hint="Marcalos como listos cuando termines" />
+              {preparingOnly.map(order => (
+                <BartenderCard
+                  key={order.id}
+                  order={order}
+                  onAction={() => advanceMutation.mutate(order.id)}
+                  actionLabel="Marcar listo"
+                  actionColor="var(--warn)"
+                />
+              ))}
+            </>
           )
         )}
 
         {tab === 'ready' && (
-          doneOrders.length === 0 ? (
+          readyOrders.length === 0 ? (
             <div className="empty-state">
               <div className="empty-icon">👋</div>
               <h3>Sin listos</h3>
               <p>Los pedidos listos aparecen acá.</p>
             </div>
           ) : (
-            doneOrders.map(order => (
+            readyOrders.map(order => (
               <BartenderCard key={order.id} order={order} onAction={onScannerOpen} actionLabel="Escanear QR 📷" actionColor="var(--mp)" />
             ))
           )
@@ -442,8 +478,31 @@ export default function BartenderScreen({ onBack, scannerPhase, onScannerOpen, o
   )
 }
 
+function SubHeader({ label, count, hint }) {
+  return (
+    <div style={{
+      padding: '12px 16px 4px',
+      display: 'flex', flexDirection: 'column', gap: 2,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-mute)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+          {label}
+        </span>
+        <span style={{
+          background: 'var(--surface3)', color: 'var(--text-dim)',
+          borderRadius: 99, padding: '1px 6px', fontSize: 11, fontWeight: 700,
+        }}>{count}</span>
+      </div>
+      {count > 0 && hint && (
+        <div style={{ fontSize: 11, color: 'var(--text-mute)' }}>{hint}</div>
+      )}
+    </div>
+  )
+}
+
 function BartenderCard({ order, onAction, actionLabel, actionColor, disabled }) {
-  const displayItems = order.items.map(resolveItem)
+  const productMap = useProductMap()
+  const displayItems = order.items.map(makeResolver(productMap))
   return (
     <div style={{
       margin: '12px 16px',

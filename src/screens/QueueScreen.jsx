@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
-import { PRODUCTS, fmt } from '../data'
+import { useEffect, useMemo, useState } from 'react'
+import { fmt } from '../lib/format.js'
+import { useProductMap, resolveProduct } from '../hooks/useMenu.js'
 
 const STEPS = [
   { key: 'queue',     label: 'En cola',    sub: 'Tu pedido fue recibido y está esperando turno' },
@@ -7,10 +8,19 @@ const STEPS = [
   { key: 'ready',     label: 'Listo',       sub: 'Acercate a la barra a retirarlo' },
 ]
 
-export default function QueueScreen({ phase, cart, bar, offline, onReady, onOfflineRetry }) {
+export default function QueueScreen({ phase, cart, bar, activeOrder, offline, onReady, onOfflineRetry }) {
   const [elapsedSec, setElapsedSec] = useState(0)
-  const total = PRODUCTS.reduce((s, p) => s + (cart[p.id] || 0) * p.price, 0)
-  const totalItems = PRODUCTS.reduce((s, p) => s + (cart[p.id] || 0), 0)
+  const productMap = useProductMap()
+  const { total, totalItems } = useMemo(() => {
+    let total = 0
+    let totalItems = 0
+    for (const [pid, qty] of Object.entries(cart)) {
+      if (!qty) continue
+      total += resolveProduct(productMap, pid).price * qty
+      totalItems += qty
+    }
+    return { total, totalItems }
+  }, [cart, productMap])
 
   useEffect(() => {
     const t = setInterval(() => setElapsedSec(s => s + 1), 1000)
@@ -60,7 +70,9 @@ export default function QueueScreen({ phase, cart, bar, offline, onReady, onOffl
           <div className="info-card">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
               <div>
-                <div style={{ fontSize: 12, color: 'var(--text-mute)', marginBottom: 3 }}>Pedido #FB{Math.floor(total / 100)}</div>
+                <div style={{ fontSize: 12, color: 'var(--text-mute)', marginBottom: 3 }}>
+                  Pedido {activeOrder?.id ?? `#FB${Math.floor(total / 100)}`}
+                </div>
                 <div style={{ fontSize: 16, fontWeight: 700 }}>{fmt(total)}</div>
               </div>
               <div style={{ textAlign: 'right' }}>

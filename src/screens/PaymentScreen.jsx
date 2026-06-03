@@ -1,17 +1,30 @@
-import { useEffect, useState } from 'react'
-import { PRODUCTS, fmt } from '../data'
+import { useEffect, useMemo, useState } from 'react'
+import { fmt } from '../lib/format.js'
+import { useProductMap, resolveProduct } from '../hooks/useMenu.js'
 
 const PAYMENT_METHODS = [
   { id: 'balance', label: 'Dinero en cuenta', detail: 'Saldo disponible $18.450', icon: '💰', selected: true },
-  { id: 'visa',    label: 'Visa ····  4521',   detail: 'Crédito · Vence 08/27',   icon: '💳', selected: false },
-  { id: 'debit',   label: 'Mastercard ···· 9873', detail: 'Débito',               icon: '💳', selected: false },
 ]
 
-export default function PaymentScreen({ cart, phase, onSuccess, onRetry, onBack }) {
+export default function PaymentScreen({ cart, phase, event, onSuccess, onRetry, onBack }) {
   const [dots, setDots] = useState('.')
   const [selectedMethod, setSelectedMethod] = useState('balance')
+  const productMap = useProductMap()
 
-  const total = PRODUCTS.reduce((s, p) => s + (cart[p.id] || 0) * p.price, 0)
+  const total = useMemo(
+    () => Object.entries(cart).reduce(
+      (s, [pid, qty]) => s + resolveProduct(productMap, pid).price * (qty || 0),
+      0
+    ),
+    [cart, productMap]
+  )
+
+  const cartLines = useMemo(
+    () => Object.entries(cart)
+      .filter(([, qty]) => qty > 0)
+      .map(([pid, qty]) => ({ ...resolveProduct(productMap, pid), qty })),
+    [cart, productMap]
+  )
 
   useEffect(() => {
     if (phase !== 'paying') return
@@ -45,7 +58,7 @@ export default function PaymentScreen({ cart, phase, onSuccess, onRetry, onBack 
           <div style={{ padding: '20px 20px 0', textAlign: 'center' }}>
             <div style={{ fontSize: 12, color: 'var(--text-mute)', marginBottom: 4 }}>Total a pagar</div>
             <div style={{ fontSize: 40, fontWeight: 800, letterSpacing: '-0.02em' }}>{fmt(total)}</div>
-            <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 4 }}>Festival Eclipse · Barra Norte</div>
+            <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 4 }}>{event?.name ?? 'Evento'}</div>
           </div>
 
           {/* Payment method selector */}
@@ -96,10 +109,10 @@ export default function PaymentScreen({ cart, phase, onSuccess, onRetry, onBack 
           <div className="section-title" style={{ marginTop: 8 }}>Resumen</div>
           <div style={{ padding: '0 20px 8px' }}>
             <div className="info-card">
-              {PRODUCTS.filter(p => (cart[p.id] || 0) > 0).map(p => (
+              {cartLines.map(p => (
                 <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', fontSize: 13 }}>
-                  <span style={{ color: 'var(--text-dim)' }}>{cart[p.id]}× {p.name}</span>
-                  <span style={{ fontWeight: 600 }}>{fmt(p.price * cart[p.id])}</span>
+                  <span style={{ color: 'var(--text-dim)' }}>{p.qty}× {p.name}</span>
+                  <span style={{ fontWeight: 600 }}>{fmt(p.price * p.qty)}</span>
                 </div>
               ))}
               <div style={{ borderTop: '1px solid var(--border)', marginTop: 8, paddingTop: 8, display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: 14 }}>
@@ -144,7 +157,9 @@ export default function PaymentScreen({ cart, phase, onSuccess, onRetry, onBack 
           </div>
           <div style={{ fontSize: 14, color: 'var(--text-dim)' }}>No cierres la aplicación</div>
         </div>
-        <div style={{ fontSize: 28, fontWeight: 800, color: 'var(--mp)' }}>{fmt(total)}</div>
+        <div className="animate-pulse-soft" style={{ fontSize: 28, fontWeight: 800, color: 'var(--mp)' }}>
+          {fmt(total)}
+        </div>
       </div>
     )
   }

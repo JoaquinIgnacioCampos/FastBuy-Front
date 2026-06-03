@@ -1,12 +1,33 @@
-import { useState } from 'react'
-import { PRODUCTS, CATEGORIES, fmt } from '../data'
+import { useMemo, useState } from 'react'
+import { fmt } from '../lib/format.js'
+import { useMenu } from '../hooks/useMenu.js'
+import { useCategories } from '../hooks/useCategories.js'
+import { Loading, ErrorPanel } from '../components/QueryStates.jsx'
+import ProductImage from '../components/ProductImage.jsx'
 
-export default function MenuScreen({ cart, onCartChange, onCheckout }) {
-  const [category, setCategory] = useState('cervezas')
+export default function MenuScreen({ cart, onCartChange, onCheckout, event }) {
+  const menu = useMenu()
+  const categories = useCategories()
 
-  const items = PRODUCTS.filter(p => p.category === category)
+  // First non-"all" category becomes the initial tab once data is loaded.
+  const firstCategory = useMemo(() => {
+    const list = categories.data ?? []
+    return list.find(c => c.id !== 'all')?.id ?? list[0]?.id ?? null
+  }, [categories.data])
+
+  const [category, setCategory] = useState(null)
+  const activeCategory = category ?? firstCategory
+
+  const items = useMemo(
+    () => (menu.data ?? []).filter(p => p.category === activeCategory),
+    [menu.data, activeCategory]
+  )
+
   const totalItems = Object.values(cart).reduce((s, n) => s + n, 0)
-  const totalPrice = PRODUCTS.reduce((s, p) => s + (cart[p.id] || 0) * p.price, 0)
+  const totalPrice = useMemo(
+    () => (menu.data ?? []).reduce((s, p) => s + (cart[p.id] || 0) * p.price, 0),
+    [menu.data, cart]
+  )
 
   function setQty(id, delta) {
     const cur = cart[id] || 0
@@ -14,27 +35,40 @@ export default function MenuScreen({ cart, onCartChange, onCheckout }) {
     onCartChange({ ...cart, [id]: next })
   }
 
+  if (menu.isLoading || categories.isLoading) {
+    return <Loading label="Cargando menú…" />
+  }
+  if (menu.isError || categories.isError) {
+    return (
+      <ErrorPanel
+        title="No se pudo cargar el menú"
+        message="Verificá tu conexión y volvé a intentar."
+        onRetry={() => { menu.refetch(); categories.refetch() }}
+      />
+    )
+  }
+
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
-      {/* Event bar */}
-      <div style={{
-        padding: '10px 20px', background: 'var(--surface)',
-        borderBottom: '1px solid var(--border)',
-        display: 'flex', alignItems: 'center', gap: 10,
-      }}>
-        <span style={{ fontSize: 18 }}>🍺</span>
-        <div>
-          <div style={{ fontSize: 13, fontWeight: 700 }}>Barra Norte</div>
-          <div style={{ fontSize: 11, color: 'var(--text-mute)' }}>Festival Eclipse · Costanera Sur</div>
+      {event && (
+        <div style={{
+          padding: '10px 20px', background: 'var(--surface)',
+          borderBottom: '1px solid var(--border)',
+          display: 'flex', alignItems: 'center', gap: 10,
+        }}>
+          <span style={{ fontSize: 18 }}>🎪</span>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 700 }}>{event.name}</div>
+            <div style={{ fontSize: 11, color: 'var(--text-mute)' }}>{event.venue}</div>
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* Category tabs */}
       <div className="pill-tabs">
-        {CATEGORIES.map(cat => (
+        {(categories.data ?? []).filter(c => c.id !== 'all').map(cat => (
           <button
             key={cat.id}
-            className={`pill-tab${category === cat.id ? ' active' : ''}`}
+            className={`pill-tab${activeCategory === cat.id ? ' active' : ''}`}
             onClick={() => setCategory(cat.id)}
           >
             {cat.emoji} {cat.label}
@@ -42,7 +76,6 @@ export default function MenuScreen({ cart, onCartChange, onCheckout }) {
         ))}
       </div>
 
-      {/* Product list */}
       <div className="screen-body" style={{ paddingBottom: totalItems > 0 ? 100 : 20 }}>
         {items.map(p => {
           const qty = cart[p.id] || 0
@@ -50,7 +83,9 @@ export default function MenuScreen({ cart, onCartChange, onCheckout }) {
           const lowStock = p.stock > 0 && p.stock <= 5
           return (
             <div key={p.id} className={`product-card${oos ? ' out-of-stock' : ''}`}>
-              <div className="product-emoji">{p.emoji}</div>
+              <div className="product-emoji">
+                <ProductImage product={p} size={40} />
+              </div>
               <div className="product-info">
                 <div className="product-name">{p.name}</div>
                 <div className="product-sub">{p.subtitle}</div>
@@ -86,7 +121,6 @@ export default function MenuScreen({ cart, onCartChange, onCheckout }) {
         })}
       </div>
 
-      {/* Floating cart */}
       {totalItems > 0 && (
         <div className="cart-bar" onClick={onCheckout}>
           <div className="cart-info">
@@ -97,7 +131,6 @@ export default function MenuScreen({ cart, onCartChange, onCheckout }) {
         </div>
       )}
 
-      {/* Empty state for empty cart tap */}
       {totalItems === 0 && (
         <div style={{
           position: 'absolute', bottom: 20, left: 20, right: 20,

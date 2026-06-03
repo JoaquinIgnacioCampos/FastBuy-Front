@@ -1,10 +1,16 @@
-import { BARS } from '../data'
+import { useBars } from '../hooks/useBars.js'
+import { Loading, ErrorPanel } from '../components/QueryStates.jsx'
 
 export default function BarSelectScreen({ onSelect }) {
+  const { data: bars, isLoading, isError, refetch } = useBars()
+
+  if (isLoading) return <Loading label="Cargando barras…" />
+  if (isError)   return <ErrorPanel title="No se pudieron cargar las barras" onRetry={refetch} />
+
   return (
     <div className="screen-body">
       <div className="section-title">¿En qué barra trabajás hoy?</div>
-      {BARS.map(bar => (
+      {(bars ?? []).map(bar => (
         <div
           key={bar.id}
           className="info-card"

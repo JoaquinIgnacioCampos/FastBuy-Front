@@ -1,9 +1,19 @@
-import { PRODUCTS, fmt } from '../data'
+import { useMemo } from 'react'
+import { fmt } from '../lib/format.js'
+import { useProductMap, resolveProduct } from '../hooks/useMenu.js'
 
 export default function OrderScreen({ cart, onPay, onBack }) {
-  const lineItems = PRODUCTS.filter(p => (cart[p.id] || 0) > 0).map(p => ({
-    ...p, qty: cart[p.id], subtotal: p.price * cart[p.id],
-  }))
+  const productMap = useProductMap()
+
+  const lineItems = useMemo(
+    () => Object.entries(cart)
+      .filter(([, qty]) => qty > 0)
+      .map(([pid, qty]) => {
+        const p = resolveProduct(productMap, pid)
+        return { ...p, qty, subtotal: p.price * qty }
+      }),
+    [cart, productMap]
+  )
   const total = lineItems.reduce((s, i) => s + i.subtotal, 0)
   const totalItems = lineItems.reduce((s, i) => s + i.qty, 0)
 
@@ -25,7 +35,6 @@ export default function OrderScreen({ cart, onPay, onBack }) {
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <div className="screen-body">
-        {/* Items */}
         <div className="section-title">Tu pedido</div>
 
         {lineItems.map(item => (
@@ -43,7 +52,6 @@ export default function OrderScreen({ cart, onPay, onBack }) {
 
         <div className="divider" style={{ margin: '8px 0' }} />
 
-        {/* Totals */}
         <div style={{ padding: '4px 20px 8px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', fontSize: 14, color: 'var(--text-dim)' }}>
             <span>{totalItems} {totalItems === 1 ? 'producto' : 'productos'}</span>
@@ -60,20 +68,18 @@ export default function OrderScreen({ cart, onPay, onBack }) {
           </div>
         </div>
 
-        {/* Pickup location */}
         <div style={{ padding: '0 20px 20px' }}>
           <div className="info-card" style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
             <span style={{ fontSize: 20, marginTop: 2 }}>📍</span>
             <div>
               <div style={{ fontSize: 13, fontWeight: 700 }}>Punto de retiro</div>
               <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>
-                Barra Norte · Planta baja · cerca del escenario principal
+                Te asignamos una barra al confirmar el pago.
               </div>
             </div>
           </div>
         </div>
 
-        {/* Payment section */}
         <div className="section-title">Medio de pago</div>
         <div style={{ padding: '0 20px 24px' }}>
           <div className="info-card" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -97,7 +103,6 @@ export default function OrderScreen({ cart, onPay, onBack }) {
         </div>
       </div>
 
-      {/* CTA */}
       <div style={{ padding: '12px 20px 28px', borderTop: '1px solid var(--border)' }}>
         <button className="btn-primary" onClick={onPay} style={{ background: 'var(--mp)', color: '#fff' }}>
           Pagar {fmt(total)} con Mercado Pago
