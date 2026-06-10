@@ -203,7 +203,7 @@ export default function BartenderScreen({ onBack, onPaymentSetup, scannerPhase, 
   const delivered = deliveredQuery.data ?? []
 
   const allOrders = ordersQuery.data ?? []
-  const { queueOnly, myPreparing, othersPreparing, readyOrders, isBusy } = useMemo(() => {
+  const { queueOnly, myPreparing, othersPreparing, myReady, othersReady, isBusy } = useMemo(() => {
     const queueOnly       = allOrders.filter(o => o.status === 'queue')
     const preparingOnly   = allOrders.filter(o => o.status === 'preparing')
     const myPreparing     = preparingOnly.filter(o => !o.claimedBy || o.claimedBy === myUsername)
