@@ -464,6 +464,23 @@ export default function BartenderScreen({ onBack, onPaymentSetup, scannerPhase, 
             </div>
           ) : (
             <>
+              {/* My active order always at the top */}
+              {myPreparing.length > 0 && (
+                <>
+                  <SubHeader label="En preparación" count={myPreparing.length} hint="Marcalos como listos cuando termines" />
+                  {myPreparing.map(order => (
+                    <BartenderCard
+                      key={order.id}
+                      order={order}
+                      onAction={() => advanceMutation.mutate({ id: order.id, bartenderId: myUsername })}
+                      actionLabel="Marcar listo"
+                      actionColor="var(--warn)"
+                      onRelease={() => releaseMutation.mutate(order.id)}
+                    />
+                  ))}
+                </>
+              )}
+
               <SubHeader
                 label="En cola"
                 count={queueOnly.length}
@@ -478,7 +495,7 @@ export default function BartenderScreen({ onBack, onPaymentSetup, scannerPhase, 
                   borderRadius: 'var(--radius-xs)',
                   fontSize: 12, color: 'var(--warn)', fontWeight: 600,
                 }}>
-                  Tenés un pedido en preparación. Terminalo o liberalo primero.
+                  Terminá o liberá tu pedido actual antes de tomar otro.
                 </div>
               )}
               {queueOnly.map((order, idx) => (
@@ -492,24 +509,14 @@ export default function BartenderScreen({ onBack, onPaymentSetup, scannerPhase, 
                 />
               ))}
 
-              <SubHeader label="Preparando" count={myPreparing.length + othersPreparing.length} hint="Marcalos como listos cuando termines" />
-              {myPreparing.map(order => (
-                <BartenderCard
-                  key={order.id}
-                  order={order}
-                  onAction={() => advanceMutation.mutate({ id: order.id, bartenderId: myUsername })}
-                  actionLabel="Marcar listo"
-                  actionColor="var(--warn)"
-                  onRelease={() => releaseMutation.mutate(order.id)}
-                />
-              ))}
-              {othersPreparing.map(order => (
-                <BartenderCard
-                  key={order.id}
-                  order={order}
-                  locked
-                />
-              ))}
+              {othersPreparing.length > 0 && (
+                <>
+                  <SubHeader label="Preparando (otros)" count={othersPreparing.length} />
+                  {othersPreparing.map(order => (
+                    <BartenderCard key={order.id} order={order} locked />
+                  ))}
+                </>
+              )}
             </>
           )
         )}

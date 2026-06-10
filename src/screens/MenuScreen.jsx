@@ -49,7 +49,7 @@ export default function MenuScreen({ cart, onCartChange, onCheckout, event }) {
   }
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       {event && (
         <div style={{
           padding: '10px 20px', background: 'var(--surface)',
@@ -76,7 +76,7 @@ export default function MenuScreen({ cart, onCartChange, onCheckout, event }) {
         ))}
       </div>
 
-      <div className="screen-body" style={{ paddingBottom: totalItems > 0 ? 100 : 20 }}>
+      <div className="screen-body" style={{ flex: 1, overflowY: 'auto' }}>
         {items.map(p => {
           const qty = cart[p.id] || 0
           const oos = p.stock === 0
@@ -133,10 +133,11 @@ export default function MenuScreen({ cart, onCartChange, onCheckout, event }) {
 
       {totalItems === 0 && (
         <div style={{
-          position: 'absolute', bottom: 20, left: 20, right: 20,
+          margin: '0 20px 20px',
           background: 'var(--surface2)', border: '1px solid var(--border)',
           borderRadius: 'var(--radius-sm)', padding: '12px 16px',
           display: 'flex', alignItems: 'center', gap: 10,
+          flexShrink: 0,
         }}>
           <span style={{ fontSize: 20 }}>🛒</span>
           <span style={{ fontSize: 13, color: 'var(--text-mute)' }}>

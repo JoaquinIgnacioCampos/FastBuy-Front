@@ -145,11 +145,9 @@
   border-color: var(--accent);
 }
 
-/* Floating cart bar */
+/* Cart bar — in-flow at the bottom of the menu screen */
 .cart-bar {
-  position: absolute;
-  bottom: 24px;
-  left: 20px; right: 20px;
+  margin: 0 20px 20px;
   background: var(--accent);
   color: var(--accent-on);
   border-radius: var(--radius-sm);
@@ -160,7 +158,7 @@
   cursor: pointer;
   box-shadow: 0 12px 28px -8px var(--accent-glow), 0 8px 32px rgba(0,0,0,0.5);
   transition: opacity 0.15s, transform 100ms ease-out;
-  z-index: 10;
+  flex-shrink: 0;
 }
 .cart-bar:hover  { opacity: 0.92; }
 .cart-bar:active { transform: translateY(1px); }
