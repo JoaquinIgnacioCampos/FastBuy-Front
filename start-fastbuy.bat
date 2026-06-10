@@ -1,39 +1,70 @@
 @echo off
-setlocal
-set FRONT=%~dp0
-set BACK=%FRONT%..\FastBuy-Back
-set DOMAIN=crepe-phonics-slogan.ngrok-free.dev
+powershell -NoProfile -ExecutionPolicy Bypass -Command "& {
+    $FRONT = Split-Path -Parent '%~f0'
+    $BACK  = Join-Path $FRONT '..\FastBuy-Back'
+    $DOMAIN = 'crepe-phonics-slogan.ngrok-free.dev'
 
-echo Freeing ports 5173 and 8080...
-powershell -NoProfile -Command ^
-  "foreach ($p in 5173,8080) { $lines = netstat -ano | Select-String ('TCP.*:' + $p + '\s+.*LISTENING'); foreach ($line in $lines) { $pid = ($line.Line -split '\s+')[-1]; if ($pid -match '^\d+$') { try { Stop-Process -Id ([int]$pid) -Force -ErrorAction SilentlyContinue } catch {} } } }"
+    Write-Host 'Freeing ports 5173 and 8080...' -ForegroundColor Cyan
+    foreach ($p in 5173, 8080) {
+        $lines = netstat -ano | Select-String ('TCP.*:' + $p + '\s+.*LISTENING')
+        foreach ($line in $lines) {
+            $pid = ($line.Line -split '\s+')[-1]
+            if ($pid -match '^\d+$') {
+                try { Stop-Process -Id ([int]$pid) -Force -ErrorAction SilentlyContinue } catch {}
+            }
+        }
+    }
 
-echo Starting Spring Boot backend...
-start "FastBuy Backend" cmd /k "cd /d %BACK% && mvnw.cmd spring-boot:run"
+    Write-Host 'Starting Spring Boot backend...' -ForegroundColor Cyan
+    $backend  = Start-Process 'cmd' -ArgumentList '/k', """cd /d $BACK && mvnw.cmd spring-boot:run -Dspring-boot.run.profiles=local""" -PassThru
 
-echo Starting Vite frontend...
-start "FastBuy Frontend" cmd /k "cd /d %FRONT% && npm run dev"
+    Write-Host 'Starting Vite frontend...' -ForegroundColor Cyan
+    $frontend = Start-Process 'cmd' -ArgumentList '/k', """cd /d $FRONT && npm run dev""" -PassThru
 
-echo Waiting for Vite to bind port 5173...
-timeout /t 10 /nobreak >nul
+    Write-Host 'Waiting for Vite to bind port 5173...' -ForegroundColor Cyan
+    Start-Sleep -Seconds 10
 
-echo Starting ngrok tunnel...
-start "FastBuy Ngrok" cmd /k "ngrok http --domain=%DOMAIN% 5173"
+    Write-Host 'Starting ngrok tunnel...' -ForegroundColor Cyan
+    $ngrok    = Start-Process 'cmd' -ArgumentList '/k', ""ngrok http --domain=$DOMAIN 5173"" -PassThru
 
-timeout /t 3 /nobreak >nul
+    Start-Sleep -Seconds 3
+    Start-Process ""https://$DOMAIN""
 
-start https://%DOMAIN%
+    Write-Host ''
+    Write-Host '==========================================================' -ForegroundColor Green
+    Write-Host '  FastBuy is running' -ForegroundColor Green
+    Write-Host '==========================================================' -ForegroundColor Green
+    Write-Host \"  URL:  https://$DOMAIN\"
+    Write-Host '  API:  /api/*  ->  http://localhost:8080/*'
+    Write-Host ''
+    Write-Host '  Press ENTER or close this window to stop all services.' -ForegroundColor Yellow
+    Write-Host '==========================================================' -ForegroundColor Green
+    Write-Host ''
 
-echo.
-echo ==========================================================
-echo   FastBuy is running
-echo ==========================================================
-echo   URL:  https://%DOMAIN%
-echo   API:  /api/*  -^>  http://localhost:8080/*
-echo.
-echo   Three windows: Backend, Frontend, Ngrok.
-echo   Close them to stop all services.
-echo ==========================================================
-echo.
-pause
-endlocal
+    try {
+        Read-Host
+    } finally {
+        Write-Host 'Stopping services...' -ForegroundColor Cyan
+        foreach ($proc in @($backend, $frontend, $ngrok)) {
+            if ($proc -ne $null -and -not $proc.HasExited) {
+                # Kill the cmd window and all its children
+                $children = Get-WmiObject Win32_Process | Where-Object { $_.ParentProcessId -eq $proc.Id }
+                foreach ($child in $children) {
+                    try { Stop-Process -Id $child.ProcessId -Force -ErrorAction SilentlyContinue } catch {}
+                }
+                try { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue } catch {}
+            }
+        }
+        # Also free the ports one more time to be safe
+        foreach ($p in 5173, 8080) {
+            $lines = netstat -ano | Select-String ('TCP.*:' + $p + '\s+.*LISTENING')
+            foreach ($line in $lines) {
+                $pid2 = ($line.Line -split '\s+')[-1]
+                if ($pid2 -match '^\d+$') {
+                    try { Stop-Process -Id ([int]$pid2) -Force -ErrorAction SilentlyContinue } catch {}
+                }
+            }
+        }
+        Write-Host 'All services stopped.' -ForegroundColor Green
+    }
+}"
