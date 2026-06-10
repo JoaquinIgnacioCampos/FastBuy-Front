@@ -426,8 +426,7 @@ export default function BartenderScreen({ onBack, onPaymentSetup, scannerPhase, 
       {/* Tabs */}
       <div style={{ display: 'flex', borderBottom: '1px solid var(--border)' }}>
         {[
-          { id: 'queue',     label: 'En cola',    count: queueOnly.length + myPreparing.length + othersPreparing.length },
-          { id: 'ready',     label: 'Listos',      count: myReady.length + othersReady.length },
+          { id: 'queue',     label: 'Pedidos',     count: queueOnly.length + myPreparing.length + othersPreparing.length + myReady.length + othersReady.length },
           { id: 'delivered', label: 'Entregados',  count: delivered.length },
         ].map(t => (
           <button
@@ -456,7 +455,7 @@ export default function BartenderScreen({ onBack, onPaymentSetup, scannerPhase, 
 
       <div className="screen-body">
         {tab === 'queue' && (
-          (queueOnly.length + myPreparing.length + othersPreparing.length) === 0 ? (
+          (queueOnly.length + myPreparing.length + othersPreparing.length + myReady.length + othersReady.length) === 0 ? (
             <div className="empty-state">
               <div className="empty-icon">☕</div>
               <h3>Sin pedidos</h3>
@@ -464,7 +463,17 @@ export default function BartenderScreen({ onBack, onPaymentSetup, scannerPhase, 
             </div>
           ) : (
             <>
-              {/* My active order always at the top */}
+              {/* Ready orders first — customer is waiting */}
+              {myReady.length > 0 && (
+                <>
+                  <SubHeader label="Listos para retirar" count={myReady.length} hint="Escaneá el QR del cliente" />
+                  {myReady.map(order => (
+                    <BartenderCard key={order.id} order={order} onAction={onScannerOpen} actionLabel="Escanear QR 📷" actionColor="var(--mp)" />
+                  ))}
+                </>
+              )}
+
+              {/* My active preparing order */}
               {myPreparing.length > 0 && (
                 <>
                   <SubHeader label="En preparación" count={myPreparing.length} hint="Marcalos como listos cuando termines" />
@@ -481,6 +490,7 @@ export default function BartenderScreen({ onBack, onPaymentSetup, scannerPhase, 
                 </>
               )}
 
+              {/* Queue — available to take */}
               <SubHeader
                 label="En cola"
                 count={queueOnly.length}
@@ -488,12 +498,9 @@ export default function BartenderScreen({ onBack, onPaymentSetup, scannerPhase, 
               />
               {isBusy && (
                 <div style={{
-                  margin: '4px 16px 2px',
-                  padding: '8px 12px',
-                  background: 'var(--warn-dim)',
-                  border: '1px solid var(--warn)',
-                  borderRadius: 'var(--radius-xs)',
-                  fontSize: 12, color: 'var(--warn)', fontWeight: 600,
+                  margin: '4px 16px 2px', padding: '8px 12px',
+                  background: 'var(--warn-dim)', border: '1px solid var(--warn)',
+                  borderRadius: 'var(--radius-xs)', fontSize: 12, color: 'var(--warn)', fontWeight: 600,
                 }}>
                   Terminá o liberá tu pedido actual antes de tomar otro.
                 </div>
@@ -509,33 +516,18 @@ export default function BartenderScreen({ onBack, onPaymentSetup, scannerPhase, 
                 />
               ))}
 
-              {othersPreparing.length > 0 && (
+              {/* Others' orders — locked */}
+              {(othersPreparing.length > 0 || othersReady.length > 0) && (
                 <>
-                  <SubHeader label="Preparando (otros)" count={othersPreparing.length} />
+                  <SubHeader label="Otros bartenders" count={othersPreparing.length + othersReady.length} />
+                  {othersReady.map(order => (
+                    <BartenderCard key={order.id} order={order} locked />
+                  ))}
                   {othersPreparing.map(order => (
                     <BartenderCard key={order.id} order={order} locked />
                   ))}
                 </>
               )}
-            </>
-          )
-        )}
-
-        {tab === 'ready' && (
-          (myReady.length + othersReady.length) === 0 ? (
-            <div className="empty-state">
-              <div className="empty-icon">👋</div>
-              <h3>Sin listos</h3>
-              <p>Los pedidos listos aparecen acá.</p>
-            </div>
-          ) : (
-            <>
-              {myReady.map(order => (
-                <BartenderCard key={order.id} order={order} onAction={onScannerOpen} actionLabel="Escanear QR 📷" actionColor="var(--mp)" />
-              ))}
-              {othersReady.map(order => (
-                <BartenderCard key={order.id} order={order} locked />
-              ))}
             </>
           )
         )}

@@ -1,33 +1,103 @@
 import { useState, useEffect } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
 import './App.css'
 
-import LoginScreen      from './screens/LoginScreen'
-import WelcomeScreen    from './screens/WelcomeScreen'
-import MenuScreen       from './screens/MenuScreen'
-import OrderScreen      from './screens/OrderScreen'
-import PaymentScreen    from './screens/PaymentScreen'
-import QueueScreen      from './screens/QueueScreen'
-import QRScreen         from './screens/QRScreen'
-import BartenderScreen  from './screens/BartenderScreen'
-import BarSelectScreen  from './screens/BarSelectScreen'
+import LoginScreen        from './screens/LoginScreen'
+import WelcomeScreen      from './screens/WelcomeScreen'
+import MenuScreen         from './screens/MenuScreen'
+import OrderScreen        from './screens/OrderScreen'
+import PaymentScreen      from './screens/PaymentScreen'
+import QueueScreen        from './screens/QueueScreen'
+import QRScreen           from './screens/QRScreen'
+import BartenderScreen    from './screens/BartenderScreen'
+import BarSelectScreen    from './screens/BarSelectScreen'
 import PaymentSetupScreen from './screens/PaymentSetupScreen'
-import { useBars } from './hooks/useBars.js'
+import { useBars }                    from './hooks/useBars.js'
 import { useProductMap, resolveProduct } from './hooks/useMenu.js'
-import { useOrderStatus } from './hooks/useOrderStatus.js'
-import { useBackendHealth } from './hooks/useBackendHealth.js'
-import { createOrder, createPaymentPreference } from './services/api'
+import { useOrderStatus }             from './hooks/useOrderStatus.js'
+import { useBackendHealth }           from './hooks/useBackendHealth.js'
+import { createOrder, createPaymentPreference, activateOrder, cancelOrder } from './services/api'
 
-const PENDING_KEY        = 'fb_pending_payment'
+// ── Constants ─────────────────────────────────────────────────────────────────
+
+const PENDING_KEY          = 'fb_pending_payment'
 const BARTENDER_SESSION_KEY = 'fb_bartender_session'
+const SS_SCREEN = 'fb_screen'
+const SS_CART   = 'fb_cart'
+const SS_EVENT  = 'fb_event'
+const SS_ORDER  = 'fb_order'
+const SS_BAR    = 'fb_bar'
+
+const SCREEN_TO_PATH = {
+  login:               '/',
+  welcome:             '/events',
+  menu:                '/menu',
+  order:               '/order',
+  payment:             '/payment',
+  paying:              '/payment',
+  rejected:            '/payment',
+  queue:               '/queue',
+  preparing:           '/queue',
+  ready:               '/queue',
+  offline:             '/queue',
+  qr:                  '/pickup',
+  confirmed:           '/pickup',
+  'bartender-bar':     '/staff/bars',
+  bartender:           '/staff',
+  'bartender-scanner': '/staff',
+  'payment-setup':     '/staff/setup',
+}
+
+const PATH_TO_SCREEN = {
+  '/':            'login',
+  '/events':      'welcome',
+  '/menu':        'menu',
+  '/order':       'order',
+  '/payment':     'payment',
+  '/queue':       'queue',
+  '/pickup':      'qr',
+  '/staff/bars':  'bartender-bar',
+  '/staff':       'bartender',
+  '/staff/setup': 'payment-setup',
+}
+
+const TITLES = {
+  menu:                'Menú',
+  order:               'Tu pedido',
+  payment:             'Mercado Pago',
+  paying:              'Procesando pago',
+  rejected:            'Pago rechazado',
+  queue:               'Cola virtual',
+  preparing:           'Cola virtual',
+  ready:               'Cola virtual',
+  offline:             'Sin conexión',
+  qr:                  'Retirar pedido',
+  confirmed:           'Pedido retirado',
+  'bartender-bar':     'Seleccionar Barra',
+  bartender:           '—',
+  'bartender-scanner': '—',
+  'payment-setup':     'Configurar pagos',
+}
+
+const BACK_TARGETS = {
+  order:    'menu',
+  payment:  'order',
+  rejected: 'order',
+}
+
+// ── SessionStorage helpers ────────────────────────────────────────────────────
+
+function loadSS(key)        { try { return JSON.parse(sessionStorage.getItem(key)) } catch { return null } }
+function saveSS(key, val)   { try { sessionStorage.setItem(key, JSON.stringify(val)) } catch {} }
+function clearSS(...keys)   { keys.forEach(k => { try { sessionStorage.removeItem(k) } catch {} }) }
+
+// ── localStorage helpers ──────────────────────────────────────────────────────
 
 function savePending(payload) {
   try { localStorage.setItem(PENDING_KEY, JSON.stringify(payload)) } catch {}
 }
 function loadPending() {
-  try {
-    const raw = localStorage.getItem(PENDING_KEY)
-    return raw ? JSON.parse(raw) : null
-  } catch { return null }
+  try { const raw = localStorage.getItem(PENDING_KEY); return raw ? JSON.parse(raw) : null } catch { return null }
 }
 function clearPending() {
   try { localStorage.removeItem(PENDING_KEY) } catch {}
@@ -49,18 +119,16 @@ function readReturnFromPayment() {
   return { status, externalRef, pending }
 }
 
+// ── UI components ─────────────────────────────────────────────────────────────
+
 function SunIcon() {
   return (
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
       <circle cx="12" cy="12" r="4"/>
-      <line x1="12" y1="2" x2="12" y2="4"/>
-      <line x1="12" y1="20" x2="12" y2="22"/>
-      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
-      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
-      <line x1="2" y1="12" x2="4" y2="12"/>
-      <line x1="20" y1="12" x2="22" y2="12"/>
-      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
-      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+      <line x1="12" y1="2" x2="12" y2="4"/><line x1="12" y1="20" x2="12" y2="22"/>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+      <line x1="2" y1="12" x2="4" y2="12"/><line x1="20" y1="12" x2="22" y2="12"/>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
     </svg>
   )
 }
@@ -102,66 +170,67 @@ function NavBar({ title, onBack, right, theme, onToggleTheme }) {
   )
 }
 
-const TITLES = {
-  login:            null,
-  welcome:          null,
-  menu:             'Menú',
-  order:            'Tu pedido',
-  payment:          'Mercado Pago',
-  paying:           'Procesando pago',
-  rejected:         'Pago rechazado',
-  queue:            'Cola virtual',
-  preparing:        'Cola virtual',
-  ready:            'Cola virtual',
-  offline:          'Sin conexión',
-  qr:               'Retirar pedido',
-  confirmed:        'Pedido retirado',
-  'bartender-bar':     'Seleccionar Barra',
-  bartender:           '—',
-  'bartender-scanner': 'Escanear QR',
-  'payment-setup':     'Configurar pagos',
-}
-
-const BACK_TARGETS = {
-  order:    'menu',
-  payment:  'order',
-  rejected: 'order',
-}
+// ── App ───────────────────────────────────────────────────────────────────────
 
 export default function App() {
+  const navigate = useNavigate()
+  const location = useLocation()
+
   const initialReturn = useState(() => readReturnFromPayment())[0]
 
-  const [screen, setScreen] = useState(() => {
-    if (initialReturn?.status === 'approved' && initialReturn.pending?.order?.id === initialReturn.externalRef) {
-      return 'queue'
-    }
-    if (initialReturn?.status === 'rejected' || initialReturn?.status === 'failure') {
-      return 'rejected'
-    }
-    return 'login'
+  const [screen, setScreenRaw] = useState(() => {
+    if (initialReturn?.status === 'approved' && initialReturn.pending?.order?.id) return 'queue'
+    if (initialReturn?.status === 'rejected' || initialReturn?.status === 'failure') return 'rejected'
+    return loadSS(SS_SCREEN) ?? PATH_TO_SCREEN[location.pathname] ?? 'login'
   })
-  const [cart, setCart] = useState(() => initialReturn?.pending?.cart ?? {})
-  const [theme, setTheme]         = useState('dark')
-  const [assignedBar, setAssignedBar] = useState(() => initialReturn?.pending?.bar ?? null)
-  const [bartenderBar, setBartenderBar] = useState(null)
-  const [activeOrder, setActiveOrder] = useState(() =>
-    initialReturn?.status === 'approved' ? (initialReturn.pending?.order ?? null) : null
-  )
-  const [selectedEvent, setSelectedEvent] = useState(() => initialReturn?.pending?.event ?? null)
+
+  function go(s) {
+    setScreenRaw(s)
+    saveSS(SS_SCREEN, s)
+    navigate(SCREEN_TO_PATH[s] ?? '/')
+  }
+
+  const [cart, setCart]               = useState(() => initialReturn?.pending?.cart ?? loadSS(SS_CART) ?? {})
+  const [theme, setTheme]             = useState('dark')
+  const [assignedBar, setAssignedBar] = useState(() => initialReturn?.pending?.bar ?? loadSS(SS_BAR))
+  const [bartenderBar, setBartenderBar] = useState(() => {
+    try {
+      const s = JSON.parse(localStorage.getItem(BARTENDER_SESSION_KEY) || 'null')
+      if (s) return { id: s.barId, label: s.barLabel, location: '', username: s.username, eventId: s.eventId }
+    } catch {}
+    return null
+  })
+  const [activeOrder, setActiveOrder] = useState(() => {
+    if (initialReturn?.status === 'approved') return initialReturn.pending?.order ?? null
+    return loadSS(SS_ORDER)
+  })
+  const [selectedEvent, setSelectedEvent] = useState(() => initialReturn?.pending?.event ?? loadSS(SS_EVENT))
 
   const { data: bars = [] } = useBars()
   const productMap = useProductMap()
   const healthStatus = useBackendHealth()
 
-  useEffect(() => {
-    document.documentElement.dataset.theme = theme
-  }, [theme])
+  // Persist state to sessionStorage so refresh restores the current view
+  useEffect(() => { saveSS(SS_CART, cart) }, [cart])
+  useEffect(() => { selectedEvent ? saveSS(SS_EVENT, selectedEvent) : clearSS(SS_EVENT) }, [selectedEvent])
+  useEffect(() => { activeOrder   ? saveSS(SS_ORDER, activeOrder)   : clearSS(SS_ORDER) }, [activeOrder])
+  useEffect(() => { assignedBar   ? saveSS(SS_BAR, assignedBar)     : clearSS(SS_BAR) }, [assignedBar])
 
+  useEffect(() => { document.documentElement.dataset.theme = theme }, [theme])
+
+  // Handle return from Mercado Pago redirect
   useEffect(() => {
     if (!initialReturn) return
+    if (initialReturn.status === 'approved' && initialReturn.pending?.order?.id) {
+      activateOrder(initialReturn.pending.order.id)
+        .then(activated => setActiveOrder(activated))
+        .catch(() => {})
+    } else if ((initialReturn.status === 'rejected' || initialReturn.status === 'failure') && initialReturn.pending?.order?.id) {
+      cancelOrder(initialReturn.pending.order.id).catch(() => {})
+    }
     clearPending()
     window.history.replaceState({}, '', window.location.pathname)
-  }, [initialReturn])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   function toggleTheme() { setTheme(t => t === 'dark' ? 'light' : 'dark') }
 
@@ -177,29 +246,28 @@ export default function App() {
   }
 
   const pollEnabled = !!activeOrder && (screen === 'queue' || screen === 'preparing' || screen === 'qr')
-  const { data: liveOrder } = useOrderStatus(
-    activeOrder?.id,
-    activeOrder?.bar,
-    { enabled: pollEnabled }
-  )
+  const { data: liveOrder } = useOrderStatus(activeOrder?.id, activeOrder?.bar, { enabled: pollEnabled })
+
   useEffect(() => {
     if (!pollEnabled || liveOrder === undefined) return
     if (liveOrder === null) {
-      if (screen === 'qr') setScreen('confirmed')
+      if (screen === 'qr') go('confirmed')
       return
     }
     const status = liveOrder.status
     if (status === 'ready' && (screen === 'queue' || screen === 'preparing')) {
       notifyOrderReady()
-      setScreen('ready')
+      go('ready')
     } else if (status === 'preparing' && screen === 'queue') {
-      setScreen('preparing')
+      go('preparing')
     }
-  }, [liveOrder, screen, pollEnabled])
+  }, [liveOrder, screen, pollEnabled]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Payment processing
   useEffect(() => {
     if (screen !== 'paying') return
     let cancelled = false
+    let pendingOrderId = null
     const t = setTimeout(async () => {
       if (cancelled) return
       const items = Object.entries(cart)
@@ -211,17 +279,20 @@ export default function App() {
       )
       try {
         const order = await createOrder(items, undefined, total, selectedEvent?.id)
-        if (cancelled) return
-        const bar = bars.find(b => b.id === order.bar) ?? { id: order.bar, label: order.bar, location: '' }
+        if (cancelled) { cancelOrder(order.id).catch(() => {}); return }
+        pendingOrderId = order.id
 
+        const bar = bars.find(b => b.id === order.bar) ?? { id: order.bar, label: order.bar, location: '' }
         const pref = await createPaymentPreference(order.id)
-        if (cancelled) return
+        if (cancelled) { cancelOrder(order.id).catch(() => {}); return }
 
         if (pref?.simulated || !pref?.initPoint) {
+          const activated = await activateOrder(order.id)
+          if (cancelled) return
           clearPending()
           setAssignedBar(bar)
-          setActiveOrder(order)
-          setScreen('queue')
+          setActiveOrder(activated)
+          go('queue')
           return
         }
 
@@ -229,15 +300,14 @@ export default function App() {
         window.location.href = pref.initPoint
       } catch {
         clearPending()
-        if (!cancelled) setScreen('rejected')
+        if (pendingOrderId) cancelOrder(pendingOrderId).catch(() => {})
+        if (!cancelled) go('rejected')
       }
     }, 600)
     return () => { cancelled = true; clearTimeout(t) }
-  }, [screen])
+  }, [screen]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  function go(s) { setScreen(s) }
-
-  const title = TITLES[screen]
+  const title      = TITLES[screen]
   const backTarget = BACK_TARGETS[screen]
 
   function handleBackFromMenu() {
@@ -245,8 +315,10 @@ export default function App() {
     if (hasItems) {
       if (!window.confirm('¿Salir del evento? Tu carrito se vaciará.')) return
       setCart({})
+      clearSS(SS_CART)
     }
     setSelectedEvent(null)
+    clearSS(SS_EVENT)
     go('welcome')
   }
 
@@ -254,6 +326,7 @@ export default function App() {
     setCart({})
     setAssignedBar(null)
     setActiveOrder(null)
+    clearSS(SS_CART, SS_ORDER, SS_BAR)
     go('menu')
   }
 
@@ -267,17 +340,15 @@ export default function App() {
   function handleLogout() {
     clearBartenderSession()
     setBartenderBar(null)
+    clearSS(SS_SCREEN, SS_CART, SS_EVENT, SS_ORDER, SS_BAR)
     go('login')
   }
 
-  const isBartender = screen === 'bartender' || screen === 'bartender-scanner' || screen === 'bartender-bar' || screen === 'payment-setup'
-  const navTitle = screen === 'bartender' || screen === 'bartender-scanner' ? (bartenderBar?.label ?? 'Barra') : title
-
+  const navTitle   = screen === 'bartender' || screen === 'bartender-scanner' ? (bartenderBar?.label ?? 'Barra') : title
   const showNavBar = !!navTitle && screen !== 'login' && screen !== 'welcome'
-
-  const onBack =
-    screen === 'menu'    ? handleBackFromMenu :
-    backTarget           ? () => go(backTarget) :
+  const onBack     =
+    screen === 'menu'          ? handleBackFromMenu :
+    backTarget                 ? () => go(backTarget) :
     screen === 'payment-setup' ? () => go('bartender') :
     null
 
@@ -333,20 +404,11 @@ export default function App() {
         )}
 
         {screen === 'menu' && (
-          <MenuScreen
-            cart={cart}
-            onCartChange={setCart}
-            onCheckout={() => go('order')}
-            event={selectedEvent}
-          />
+          <MenuScreen cart={cart} onCartChange={setCart} onCheckout={() => go('order')} event={selectedEvent} />
         )}
 
         {screen === 'order' && (
-          <OrderScreen
-            cart={cart}
-            onPay={() => go('payment')}
-            onBack={() => go('menu')}
-          />
+          <OrderScreen cart={cart} onPay={() => go('payment')} onBack={() => go('menu')} />
         )}
 
         {(screen === 'payment' || screen === 'paying' || screen === 'rejected') && (
@@ -379,20 +441,12 @@ export default function App() {
             bar={assignedBar}
             activeOrder={activeOrder}
             event={selectedEvent}
-            onConfirmed={() => {
-              if (screen === 'confirmed') {
-                resetOrder()
-              } else {
-                go('confirmed')
-              }
-            }}
+            onConfirmed={() => { if (screen === 'confirmed') resetOrder(); else go('confirmed') }}
           />
         )}
 
         {screen === 'bartender-bar' && (
-          <BarSelectScreen
-            onSelect={bar => { setBartenderBar(bar); go('bartender') }}
-          />
+          <BarSelectScreen onSelect={bar => { setBartenderBar(bar); go('bartender') }} />
         )}
 
         {(screen === 'bartender' || screen === 'bartender-scanner') && (

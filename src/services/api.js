@@ -32,6 +32,17 @@ export async function releaseOrder(id) {
   return r.json()
 }
 
+export async function activateOrder(id) {
+  const clean = String(id).startsWith('FB') ? String(id).slice(2) : String(id)
+  const r = await req(`${BASE}/orders/${clean}/activate`, { method: 'POST' })
+  return r.json()
+}
+
+export async function cancelOrder(id) {
+  const clean = String(id).startsWith('FB') ? String(id).slice(2) : String(id)
+  await req(`${BASE}/orders/${clean}`, { method: 'DELETE' })
+}
+
 export async function markDelivered(id) {
   const r = await req(`${BASE}/orders/${id}/deliver`, { method: 'POST' })
   return r.json()
