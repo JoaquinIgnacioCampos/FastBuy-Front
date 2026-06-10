@@ -208,15 +208,17 @@ export default function BartenderScreen({ onBack, onPaymentSetup, scannerPhase, 
     const preparingOnly   = allOrders.filter(o => o.status === 'preparing')
     const myPreparing     = preparingOnly.filter(o => !o.claimedBy || o.claimedBy === myUsername)
     const othersPreparing = preparingOnly.filter(o => o.claimedBy && o.claimedBy !== myUsername)
-    const readyOrders     = allOrders.filter(o => o.status === 'ready')
-    const isBusy          = myPreparing.length > 0
-    return { queueOnly, myPreparing, othersPreparing, readyOrders, isBusy }
+    const readyAll        = allOrders.filter(o => o.status === 'ready')
+    const myReady         = readyAll.filter(o => !o.claimedBy || o.claimedBy === myUsername)
+    const othersReady     = readyAll.filter(o => o.claimedBy && o.claimedBy !== myUsername)
+    const isBusy          = myPreparing.length > 0 || myReady.length > 0
+    return { queueOnly, myPreparing, othersPreparing, myReady, othersReady, isBusy }
   }, [allOrders, myUsername])
 
   function handleQRScan(text) {
     try {
       const data = JSON.parse(text)
-      const matched = readyOrders.find(o => o.id === data.id) ?? readyOrders[0] ?? null
+      const matched = myReady.find(o => o.id === data.id) ?? myReady[0] ?? null
       const itemsMatch = matched ? itemsAreEqual(data.items ?? [], matched.items) : null
       setScannedOrder({
         id: data.id,
@@ -226,7 +228,7 @@ export default function BartenderScreen({ onBack, onPaymentSetup, scannerPhase, 
         itemsMatch,
       })
     } catch {
-      setScannedOrder({ raw: text, matched: readyOrders[0] ?? null, itemsMatch: null })
+      setScannedOrder({ raw: text, matched: myReady[0] ?? null, itemsMatch: null })
     }
   }
 
@@ -366,7 +368,7 @@ export default function BartenderScreen({ onBack, onPaymentSetup, scannerPhase, 
             <button
               className="btn-primary"
               onClick={() => {
-                const order = readyOrders[0]
+                const order = myReady[0]
                 if (order) {
                   const simulatedQR = JSON.stringify({ id: order.id, total: order.total, items: order.items })
                   handleQRScan(simulatedQR)
@@ -424,7 +426,7 @@ export default function BartenderScreen({ onBack, onPaymentSetup, scannerPhase, 
       <div style={{ display: 'flex', borderBottom: '1px solid var(--border)' }}>
         {[
           { id: 'queue',     label: 'En cola',    count: queueOnly.length + myPreparing.length + othersPreparing.length },
-          { id: 'ready',     label: 'Listos',      count: readyOrders.length },
+          { id: 'ready',     label: 'Listos',      count: myReady.length + othersReady.length },
           { id: 'delivered', label: 'Entregados',  count: delivered.length },
         ].map(t => (
           <button
@@ -512,16 +514,21 @@ export default function BartenderScreen({ onBack, onPaymentSetup, scannerPhase, 
         )}
 
         {tab === 'ready' && (
-          readyOrders.length === 0 ? (
+          (myReady.length + othersReady.length) === 0 ? (
             <div className="empty-state">
               <div className="empty-icon">👋</div>
               <h3>Sin listos</h3>
               <p>Los pedidos listos aparecen acá.</p>
             </div>
           ) : (
-            readyOrders.map(order => (
-              <BartenderCard key={order.id} order={order} onAction={onScannerOpen} actionLabel="Escanear QR 📷" actionColor="var(--mp)" />
-            ))
+            <>
+              {myReady.map(order => (
+                <BartenderCard key={order.id} order={order} onAction={onScannerOpen} actionLabel="Escanear QR 📷" actionColor="var(--mp)" />
+              ))}
+              {othersReady.map(order => (
+                <BartenderCard key={order.id} order={order} locked />
+              ))}
+            </>
           )
         )}
 
