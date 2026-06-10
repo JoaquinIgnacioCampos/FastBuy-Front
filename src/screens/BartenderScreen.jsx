@@ -204,11 +204,12 @@ export default function BartenderScreen({ onBack, onPaymentSetup, scannerPhase, 
 
   const allOrders = ordersQuery.data ?? []
   const { queueOnly, myPreparing, othersPreparing, myReady, othersReady, isBusy } = useMemo(() => {
-    const queueOnly       = allOrders.filter(o => o.status === 'queue')
-    const preparingOnly   = allOrders.filter(o => o.status === 'preparing')
+    const byId = (a, b) => parseInt(a.id.replace('FB', '')) - parseInt(b.id.replace('FB', ''))
+    const queueOnly       = allOrders.filter(o => o.status === 'queue').sort(byId)
+    const preparingOnly   = allOrders.filter(o => o.status === 'preparing').sort(byId)
     const myPreparing     = preparingOnly.filter(o => !o.claimedBy || o.claimedBy === myUsername)
     const othersPreparing = preparingOnly.filter(o => o.claimedBy && o.claimedBy !== myUsername)
-    const readyAll        = allOrders.filter(o => o.status === 'ready')
+    const readyAll        = allOrders.filter(o => o.status === 'ready').sort(byId)
     const myReady         = readyAll.filter(o => !o.claimedBy || o.claimedBy === myUsername)
     const othersReady     = readyAll.filter(o => o.claimedBy && o.claimedBy !== myUsername)
     const isBusy          = myPreparing.length > 0 || myReady.length > 0
@@ -480,14 +481,14 @@ export default function BartenderScreen({ onBack, onPaymentSetup, scannerPhase, 
                   Tenés un pedido en preparación. Terminalo o liberalo primero.
                 </div>
               )}
-              {queueOnly.map(order => (
+              {queueOnly.map((order, idx) => (
                 <BartenderCard
                   key={order.id}
                   order={order}
-                  onAction={isBusy ? undefined : () => advanceMutation.mutate({ id: order.id, bartenderId: myUsername })}
+                  onAction={(!isBusy && idx === 0) ? () => advanceMutation.mutate({ id: order.id, bartenderId: myUsername }) : undefined}
                   actionLabel="Comenzar a preparar"
                   actionColor="var(--accent)"
-                  disabledAction={isBusy}
+                  disabledAction={isBusy || idx > 0}
                 />
               ))}
 
