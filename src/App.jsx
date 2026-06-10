@@ -16,7 +16,7 @@ import { useBars }                    from './hooks/useBars.js'
 import { useProductMap, resolveProduct } from './hooks/useMenu.js'
 import { useOrderStatus }             from './hooks/useOrderStatus.js'
 import { useBackendHealth }           from './hooks/useBackendHealth.js'
-import { createOrder, createPaymentPreference, activateOrder, cancelOrder } from './services/api'
+import { createOrder, createPaymentPreference } from './services/api'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -179,7 +179,7 @@ export default function App() {
   const initialReturn = useState(() => readReturnFromPayment())[0]
 
   const [screen, setScreenRaw] = useState(() => {
-    if (initialReturn?.status === 'approved' && initialReturn.pending?.order?.id) return 'queue'
+    if (initialReturn?.status === 'approved' && initialReturn.pending) return 'queue'
     if (initialReturn?.status === 'rejected' || initialReturn?.status === 'failure') return 'rejected'
     return loadSS(SS_SCREEN) ?? PATH_TO_SCREEN[location.pathname] ?? 'login'
   })
@@ -190,9 +190,9 @@ export default function App() {
     navigate(SCREEN_TO_PATH[s] ?? '/')
   }
 
-  const [cart, setCart]               = useState(() => initialReturn?.pending?.cart ?? loadSS(SS_CART) ?? {})
+  const [cart, setCart]               = useState(() => loadSS(SS_CART) ?? {})
   const [theme, setTheme]             = useState('dark')
-  const [assignedBar, setAssignedBar] = useState(() => initialReturn?.pending?.bar ?? loadSS(SS_BAR))
+  const [assignedBar, setAssignedBar] = useState(() => loadSS(SS_BAR))
   const [bartenderBar, setBartenderBar] = useState(() => {
     try {
       const s = JSON.parse(localStorage.getItem(BARTENDER_SESSION_KEY) || 'null')
@@ -200,11 +200,8 @@ export default function App() {
     } catch {}
     return null
   })
-  const [activeOrder, setActiveOrder] = useState(() => {
-    if (initialReturn?.status === 'approved') return initialReturn.pending?.order ?? null
-    return loadSS(SS_ORDER)
-  })
-  const [selectedEvent, setSelectedEvent] = useState(() => initialReturn?.pending?.event ?? loadSS(SS_EVENT))
+  const [activeOrder, setActiveOrder] = useState(() => loadSS(SS_ORDER))
+  const [selectedEvent, setSelectedEvent] = useState(() => loadSS(SS_EVENT))
 
   const { data: bars = [] } = useBars()
   const productMap = useProductMap()
@@ -221,12 +218,15 @@ export default function App() {
   // Handle return from Mercado Pago redirect
   useEffect(() => {
     if (!initialReturn) return
-    if (initialReturn.status === 'approved' && initialReturn.pending?.order?.id) {
-      activateOrder(initialReturn.pending.order.id)
-        .then(activated => setActiveOrder(activated))
+    if (initialReturn.status === 'approved' && initialReturn.pending) {
+      const { items, total, event } = initialReturn.pending
+      createOrder(items, undefined, total, event?.id)
+        .then(order => {
+          const bar = { id: order.bar, label: order.bar, location: '' }
+          setActiveOrder(order)
+          setAssignedBar(bar)
+        })
         .catch(() => {})
-    } else if ((initialReturn.status === 'rejected' || initialReturn.status === 'failure') && initialReturn.pending?.order?.id) {
-      cancelOrder(initialReturn.pending.order.id).catch(() => {})
     }
     clearPending()
     window.history.replaceState({}, '', window.location.pathname)
@@ -267,7 +267,6 @@ export default function App() {
   useEffect(() => {
     if (screen !== 'paying') return
     let cancelled = false
-    let pendingOrderId = null
     const t = setTimeout(async () => {
       if (cancelled) return
       const items = Object.entries(cart)
@@ -278,29 +277,26 @@ export default function App() {
         0
       )
       try {
-        const order = await createOrder(items, undefined, total, selectedEvent?.id)
-        if (cancelled) { cancelOrder(order.id).catch(() => {}); return }
-        pendingOrderId = order.id
-
-        const bar = bars.find(b => b.id === order.bar) ?? { id: order.bar, label: order.bar, location: '' }
-        const pref = await createPaymentPreference(order.id)
-        if (cancelled) { cancelOrder(order.id).catch(() => {}); return }
+        const pref = await createPaymentPreference(items, total, selectedEvent?.id)
+        if (cancelled) return
 
         if (pref?.simulated || !pref?.initPoint) {
-          const activated = await activateOrder(order.id)
+          // Simulated path: create the order now (no real payment needed)
+          const order = await createOrder(items, undefined, total, selectedEvent?.id)
           if (cancelled) return
+          const bar = bars.find(b => b.id === order.bar) ?? { id: order.bar, label: order.bar, location: '' }
           clearPending()
           setAssignedBar(bar)
-          setActiveOrder(activated)
+          setActiveOrder(order)
           go('queue')
           return
         }
 
-        savePending({ order, bar, cart, event: selectedEvent })
+        // Real MP path: stash cart for after the redirect; order created on return
+        savePending({ items, total, cart, event: selectedEvent })
         window.location.href = pref.initPoint
       } catch {
         clearPending()
-        if (pendingOrderId) cancelOrder(pendingOrderId).catch(() => {})
         if (!cancelled) go('rejected')
       }
     }, 600)

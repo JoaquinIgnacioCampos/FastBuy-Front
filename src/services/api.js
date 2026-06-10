@@ -32,16 +32,6 @@ export async function releaseOrder(id) {
   return r.json()
 }
 
-export async function activateOrder(id) {
-  const clean = String(id).startsWith('FB') ? String(id).slice(2) : String(id)
-  const r = await req(`${BASE}/orders/${clean}/activate`, { method: 'POST' })
-  return r.json()
-}
-
-export async function cancelOrder(id) {
-  const clean = String(id).startsWith('FB') ? String(id).slice(2) : String(id)
-  await req(`${BASE}/orders/${clean}`, { method: 'DELETE' })
-}
 
 export async function markDelivered(id) {
   const r = await req(`${BASE}/orders/${id}/deliver`, { method: 'POST' })
@@ -97,11 +87,11 @@ export async function getEvents() {
 
 // ── Payments ─────────────────────────────────────────────────────────────────
 
-export async function createPaymentPreference(orderId) {
+export async function createPaymentPreference(items, total, eventId) {
   const r = await req(`${BASE}/payments/preference`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ orderId }),
+    body: JSON.stringify({ items, total, eventId }),
   })
   return r.json()
 }
