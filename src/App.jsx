@@ -215,21 +215,24 @@ export default function App() {
 
   useEffect(() => { document.documentElement.dataset.theme = theme }, [theme])
 
-  // Handle return from Mercado Pago redirect
+  // Handle return from Mercado Pago redirect.
+  // Re-reads pending fresh from localStorage so clearPending() before the async
+  // call acts as a once-only guard — React StrictMode runs effects twice in dev;
+  // the second invocation finds localStorage already empty and skips createOrder.
   useEffect(() => {
     if (!initialReturn) return
-    if (initialReturn.status === 'approved' && initialReturn.pending) {
-      const { items, total, event } = initialReturn.pending
-      createOrder(items, undefined, total, event?.id)
-        .then(order => {
-          const bar = { id: order.bar, label: order.bar, location: '' }
-          setActiveOrder(order)
-          setAssignedBar(bar)
-        })
-        .catch(() => {})
-    }
+    const pending = loadPending()
     clearPending()
     window.history.replaceState({}, '', window.location.pathname)
+    if (!pending || initialReturn.status !== 'approved') return
+    const { items, total, event } = pending
+    createOrder(items, undefined, total, event?.id)
+      .then(order => {
+        const bar = { id: order.bar, label: order.bar, location: '' }
+        setActiveOrder(order)
+        setAssignedBar(bar)
+      })
+      .catch(() => {})
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   function toggleTheme() { setTheme(t => t === 'dark' ? 'light' : 'dark') }
