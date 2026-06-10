@@ -182,8 +182,17 @@ export default function BartenderScreen({ onBack, onPaymentSetup, scannerPhase, 
   const productMap = useProductMap()
   const resolveItem = makeResolver(productMap)
 
-  const barId      = bartenderBar?.id ?? null
-  const myUsername = bartenderBar?.username ?? null
+  const barId = bartenderBar?.id ?? null
+
+  // Stable identity: real login sets username; dev-picker falls back to a
+  // session-scoped random ID so claims still work without an account.
+  const myUsername = useMemo(() => {
+    if (bartenderBar?.username) return bartenderBar.username
+    const key = `fb_session_${barId}`
+    let id = sessionStorage.getItem(key)
+    if (!id) { id = `guest-${Math.random().toString(36).slice(2, 8)}`; sessionStorage.setItem(key, id) }
+    return id
+  }, [bartenderBar?.username, barId])
 
   const ordersQuery    = useOrders(barId)
   const deliveredQuery = useDeliveredOrders(barId)
@@ -194,13 +203,14 @@ export default function BartenderScreen({ onBack, onPaymentSetup, scannerPhase, 
   const delivered = deliveredQuery.data ?? []
 
   const allOrders = ordersQuery.data ?? []
-  const { queueOnly, myPreparing, othersPreparing, readyOrders } = useMemo(() => {
-    const queueOnly      = allOrders.filter(o => o.status === 'queue')
-    const preparingOnly  = allOrders.filter(o => o.status === 'preparing')
-    const myPreparing    = preparingOnly.filter(o => !o.claimedBy || o.claimedBy === myUsername)
+  const { queueOnly, myPreparing, othersPreparing, readyOrders, isBusy } = useMemo(() => {
+    const queueOnly       = allOrders.filter(o => o.status === 'queue')
+    const preparingOnly   = allOrders.filter(o => o.status === 'preparing')
+    const myPreparing     = preparingOnly.filter(o => !o.claimedBy || o.claimedBy === myUsername)
     const othersPreparing = preparingOnly.filter(o => o.claimedBy && o.claimedBy !== myUsername)
-    const readyOrders    = allOrders.filter(o => o.status === 'ready')
-    return { queueOnly, myPreparing, othersPreparing, readyOrders }
+    const readyOrders     = allOrders.filter(o => o.status === 'ready')
+    const isBusy          = myPreparing.length > 0
+    return { queueOnly, myPreparing, othersPreparing, readyOrders, isBusy }
   }, [allOrders, myUsername])
 
   function handleQRScan(text) {
@@ -451,14 +461,31 @@ export default function BartenderScreen({ onBack, onPaymentSetup, scannerPhase, 
             </div>
           ) : (
             <>
-              <SubHeader label="En cola" count={queueOnly.length} hint="Tocá para comenzar a prepararlos" />
+              <SubHeader
+                label="En cola"
+                count={queueOnly.length}
+                hint={isBusy ? 'Terminá tu pedido actual antes de tomar otro' : 'Tocá para comenzar a prepararlos'}
+              />
+              {isBusy && (
+                <div style={{
+                  margin: '4px 16px 2px',
+                  padding: '8px 12px',
+                  background: 'var(--warn-dim)',
+                  border: '1px solid var(--warn)',
+                  borderRadius: 'var(--radius-xs)',
+                  fontSize: 12, color: 'var(--warn)', fontWeight: 600,
+                }}>
+                  Tenés un pedido en preparación. Terminalo o liberalo primero.
+                </div>
+              )}
               {queueOnly.map(order => (
                 <BartenderCard
                   key={order.id}
                   order={order}
-                  onAction={() => advanceMutation.mutate({ id: order.id, bartenderId: myUsername })}
+                  onAction={isBusy ? undefined : () => advanceMutation.mutate({ id: order.id, bartenderId: myUsername })}
                   actionLabel="Comenzar a preparar"
                   actionColor="var(--accent)"
+                  disabledAction={isBusy}
                 />
               ))}
 
@@ -538,7 +565,7 @@ function SubHeader({ label, count, hint }) {
   )
 }
 
-function BartenderCard({ order, onAction, actionLabel, actionColor, onRelease, disabled, locked }) {
+function BartenderCard({ order, onAction, actionLabel, actionColor, onRelease, disabled, locked, disabledAction }) {
   const productMap = useProductMap()
   const displayItems = order.items.map(makeResolver(productMap))
   return (
@@ -583,16 +610,19 @@ function BartenderCard({ order, onAction, actionLabel, actionColor, onRelease, d
         ))}
       </div>
 
-      {!disabled && !locked && onAction && (
+      {!disabled && !locked && (onAction || disabledAction) && (
         <div style={{ padding: '10px 14px', borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 6 }}>
           <button
-            onClick={onAction}
+            onClick={disabledAction ? undefined : onAction}
+            disabled={!!disabledAction}
             style={{
               width: '100%', padding: '10px',
-              background: actionColor || 'var(--accent)',
-              color: actionColor === 'var(--mp)' ? '#fff' : 'var(--accent-on)',
+              background: disabledAction ? 'var(--surface3)' : (actionColor || 'var(--accent)'),
+              color: disabledAction ? 'var(--text-mute)' : (actionColor === 'var(--mp)' ? '#fff' : 'var(--accent-on)'),
               borderRadius: 'var(--radius-xs)', fontSize: 13, fontWeight: 700,
               transition: 'opacity 0.15s',
+              cursor: disabledAction ? 'not-allowed' : 'pointer',
+              opacity: disabledAction ? 0.6 : 1,
             }}
           >
             {actionLabel}
