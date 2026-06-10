@@ -46,7 +46,7 @@ export default function QRScreen({ cart, phase, bar, activeOrder, event, onConfi
   }
 
   return (
-    <div data-theme="light" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'var(--bg)' }}>
+    <div data-theme="light" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'var(--bg)', color: 'var(--text)' }}>
       <div className="screen-body">
         {/* Alert */}
         <div style={{ padding: '16px 20px 0' }}>
