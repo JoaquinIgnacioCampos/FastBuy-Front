@@ -6,27 +6,25 @@ const NEXT_STATUS = { queue: 'preparing', preparing: 'ready' }
 export function useAdvanceOrder(barId) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (id) => advanceOrder(id),
-    onMutate: async (id) => {
+    mutationFn: ({ id, bartenderId }) => advanceOrder(id, bartenderId),
+    onMutate: async ({ id, bartenderId }) => {
       await qc.cancelQueries({ queryKey: ['orders', barId] })
       const prev = qc.getQueryData(['orders', barId])
       qc.setQueryData(['orders', barId], (old) =>
-        (old ?? []).map(o =>
-          o.id === id && NEXT_STATUS[o.status]
-            ? { ...o, status: NEXT_STATUS[o.status] }
-            : o
-        )
+        (old ?? []).map(o => {
+          if (o.id !== id || !NEXT_STATUS[o.status]) return o
+          const next = { ...o, status: NEXT_STATUS[o.status] }
+          if (o.status === 'queue' && bartenderId) next.claimedBy = bartenderId
+          return next
+        })
       )
       return { prev }
     },
-    onError: (_err, _id, ctx) => {
+    onError: (_err, _vars, ctx) => {
       if (ctx?.prev) qc.setQueryData(['orders', barId], ctx.prev)
     },
     onSettled: () => {
       qc.invalidateQueries({ queryKey: ['orders', barId] })
-      // Customer-side QR / queue polling lives under ['order-status']; refresh
-      // it too so the customer sees queue → preparing → ready without waiting
-      // for the next 3s poll tick.
       qc.invalidateQueries({ queryKey: ['order-status'] })
     },
   })

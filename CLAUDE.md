@@ -63,3 +63,11 @@ React 19 + Vite frontend for FastBuy. Runs on port 5173. Started via `start-fast
 - Mercado Pago redirect-back flow: `App.jsx`'s `paying` effect now calls `createOrder` → `createPaymentPreference(order.id)` → `window.location.href = pref.initPoint`. Before the redirect, the in-flight `{ order, bar, cart, event }` is stashed in `localStorage` under key `fb_pending_payment`. On boot, `App.jsx` reads `?status=` and `?external_reference=` from the URL, restores the pending payload if `status=approved`, jumps to the queue screen, and strips the params via `history.replaceState`. Works identically whether the backend hit real MP or the simulated fallback.
 - New service / hook: `createPaymentPreference(orderId)` in `services/api.js` and `services/demo.js` (demo returns a same-origin simulated initPoint so the redirect flow works offline). Wrapped by `hooks/useCreatePaymentPreference.js` (currently used directly via the service function in `App.jsx`; the hook is available for future mutation-driven flows).
 - Customer menu now shows 15 distinct emoji glyphs (was: many 🍺/🌭/🥤 duplicates), and the backend's lenient bar assignment means mixed carts (e.g. a north-only product + a south-only one) succeed instead of bouncing back as 422.
+
+### 2026-06-10 — Multi-bartender order locking
+- `handleBartenderLogin` in `App.jsx` now includes `username` (from `LoginResponse`) in `bartenderBar` state: `{ id, label, location, username, eventId }`.
+- `advanceOrder(id, bartenderId)` in `api.js` sends `{ bartenderId }` in the POST body.
+- New `releaseOrder(id)` in `api.js` → `POST /orders/{id}/release`.
+- `useAdvanceOrder` mutation arg changed from `id` to `{ id, bartenderId }`. Optimistic update sets `claimedBy` when QUEUE→PREPARING.
+- New `useReleaseOrder(barId)` hook in `src/hooks/useReleaseOrder.js`.
+- `BartenderScreen`: `preparingOnly` split into `myPreparing` (`claimedBy === myUsername` or unclaimed) and `othersPreparing` (`claimedBy` set to another user). My orders show "Marcar listo" + "Liberar pedido" buttons. Others' orders render as read-only cards at 65% opacity with a `🔒 [username]` chip in the header. Locked orders have no action buttons.

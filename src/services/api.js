@@ -18,8 +18,17 @@ export async function getDeliveredOrders(barId) {
   return r.json()
 }
 
-export async function advanceOrder(id) {
-  const r = await req(`${BASE}/orders/${id}/advance`, { method: 'POST' })
+export async function advanceOrder(id, bartenderId) {
+  const r = await req(`${BASE}/orders/${id}/advance`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ bartenderId: bartenderId ?? null }),
+  })
+  return r.json()
+}
+
+export async function releaseOrder(id) {
+  const r = await req(`${BASE}/orders/${id}/release`, { method: 'POST' })
   return r.json()
 }
 

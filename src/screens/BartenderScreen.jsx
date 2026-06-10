@@ -5,6 +5,7 @@ import { useProductMap } from '../hooks/useMenu.js'
 import { useOrders } from '../hooks/useOrders.js'
 import { useDeliveredOrders } from '../hooks/useDeliveredOrders.js'
 import { useAdvanceOrder } from '../hooks/useAdvanceOrder.js'
+import { useReleaseOrder } from '../hooks/useReleaseOrder.js'
 import { useMarkDelivered } from '../hooks/useMarkDelivered.js'
 import { ErrorPanel } from '../components/QueryStates.jsx'
 
@@ -181,22 +182,26 @@ export default function BartenderScreen({ onBack, onPaymentSetup, scannerPhase, 
   const productMap = useProductMap()
   const resolveItem = makeResolver(productMap)
 
-  const barId = bartenderBar?.id ?? null
+  const barId      = bartenderBar?.id ?? null
+  const myUsername = bartenderBar?.username ?? null
 
   const ordersQuery    = useOrders(barId)
   const deliveredQuery = useDeliveredOrders(barId)
   const advanceMutation = useAdvanceOrder(barId)
+  const releaseMutation = useReleaseOrder(barId)
   const deliverMutation = useMarkDelivered(barId)
 
   const delivered = deliveredQuery.data ?? []
 
   const allOrders = ordersQuery.data ?? []
-  const { queueOnly, preparingOnly, readyOrders } = useMemo(() => {
-    const queueOnly     = allOrders.filter(o => o.status === 'queue')
-    const preparingOnly = allOrders.filter(o => o.status === 'preparing')
-    const readyOrders   = allOrders.filter(o => o.status === 'ready')
-    return { queueOnly, preparingOnly, readyOrders }
-  }, [allOrders])
+  const { queueOnly, myPreparing, othersPreparing, readyOrders } = useMemo(() => {
+    const queueOnly      = allOrders.filter(o => o.status === 'queue')
+    const preparingOnly  = allOrders.filter(o => o.status === 'preparing')
+    const myPreparing    = preparingOnly.filter(o => !o.claimedBy || o.claimedBy === myUsername)
+    const othersPreparing = preparingOnly.filter(o => o.claimedBy && o.claimedBy !== myUsername)
+    const readyOrders    = allOrders.filter(o => o.status === 'ready')
+    return { queueOnly, myPreparing, othersPreparing, readyOrders }
+  }, [allOrders, myUsername])
 
   function handleQRScan(text) {
     try {
@@ -408,7 +413,7 @@ export default function BartenderScreen({ onBack, onPaymentSetup, scannerPhase, 
       {/* Tabs */}
       <div style={{ display: 'flex', borderBottom: '1px solid var(--border)' }}>
         {[
-          { id: 'queue',     label: 'En cola',    count: queueOnly.length + preparingOnly.length },
+          { id: 'queue',     label: 'En cola',    count: queueOnly.length + myPreparing.length + othersPreparing.length },
           { id: 'ready',     label: 'Listos',      count: readyOrders.length },
           { id: 'delivered', label: 'Entregados',  count: delivered.length },
         ].map(t => (
@@ -438,7 +443,7 @@ export default function BartenderScreen({ onBack, onPaymentSetup, scannerPhase, 
 
       <div className="screen-body">
         {tab === 'queue' && (
-          (queueOnly.length + preparingOnly.length) === 0 ? (
+          (queueOnly.length + myPreparing.length + othersPreparing.length) === 0 ? (
             <div className="empty-state">
               <div className="empty-icon">☕</div>
               <h3>Sin pedidos</h3>
@@ -451,20 +456,28 @@ export default function BartenderScreen({ onBack, onPaymentSetup, scannerPhase, 
                 <BartenderCard
                   key={order.id}
                   order={order}
-                  onAction={() => advanceMutation.mutate(order.id)}
+                  onAction={() => advanceMutation.mutate({ id: order.id, bartenderId: myUsername })}
                   actionLabel="Comenzar a preparar"
                   actionColor="var(--accent)"
                 />
               ))}
 
-              <SubHeader label="Preparando" count={preparingOnly.length} hint="Marcalos como listos cuando termines" />
-              {preparingOnly.map(order => (
+              <SubHeader label="Preparando" count={myPreparing.length + othersPreparing.length} hint="Marcalos como listos cuando termines" />
+              {myPreparing.map(order => (
                 <BartenderCard
                   key={order.id}
                   order={order}
-                  onAction={() => advanceMutation.mutate(order.id)}
+                  onAction={() => advanceMutation.mutate({ id: order.id, bartenderId: myUsername })}
                   actionLabel="Marcar listo"
                   actionColor="var(--warn)"
+                  onRelease={() => releaseMutation.mutate(order.id)}
+                />
+              ))}
+              {othersPreparing.map(order => (
+                <BartenderCard
+                  key={order.id}
+                  order={order}
+                  locked
                 />
               ))}
             </>
@@ -525,26 +538,36 @@ function SubHeader({ label, count, hint }) {
   )
 }
 
-function BartenderCard({ order, onAction, actionLabel, actionColor, disabled }) {
+function BartenderCard({ order, onAction, actionLabel, actionColor, onRelease, disabled, locked }) {
   const productMap = useProductMap()
   const displayItems = order.items.map(makeResolver(productMap))
   return (
     <div style={{
       margin: '12px 16px',
       background: 'var(--surface)',
-      border: '1px solid var(--border-strong)',
+      border: `1px solid ${locked ? 'var(--border)' : 'var(--border-strong)'}`,
       borderRadius: 'var(--radius-sm)',
       overflow: 'hidden',
+      opacity: locked ? 0.65 : 1,
     }}>
       <div style={{
         padding: '12px 14px', borderBottom: '1px solid var(--border)',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       }}>
-        <div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <span style={{ fontWeight: 700, fontSize: 14 }}>Pedido #{order.id}</span>
-          <span style={{ marginLeft: 8, fontSize: 12, color: 'var(--text-mute)' }}>⏱ {order.time}</span>
+          <span style={{ fontSize: 12, color: 'var(--text-mute)' }}>⏱ {order.time}</span>
+          {locked && order.claimedBy && (
+            <span style={{
+              fontSize: 11, fontWeight: 600,
+              background: 'var(--surface3)', color: 'var(--text-dim)',
+              borderRadius: 99, padding: '2px 8px',
+            }}>
+              🔒 {order.claimedBy}
+            </span>
+          )}
         </div>
-        <span style={{ fontSize: 14, fontWeight: 700 }}>{fmt(order.total)}</span>
+        <span style={{ fontSize: 14, fontWeight: 700, flexShrink: 0 }}>{fmt(order.total)}</span>
       </div>
 
       <div style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -560,8 +583,8 @@ function BartenderCard({ order, onAction, actionLabel, actionColor, disabled }) 
         ))}
       </div>
 
-      {!disabled && onAction && (
-        <div style={{ padding: '10px 14px', borderTop: '1px solid var(--border)' }}>
+      {!disabled && !locked && onAction && (
+        <div style={{ padding: '10px 14px', borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 6 }}>
           <button
             onClick={onAction}
             style={{
@@ -574,6 +597,19 @@ function BartenderCard({ order, onAction, actionLabel, actionColor, disabled }) 
           >
             {actionLabel}
           </button>
+          {onRelease && (
+            <button
+              onClick={onRelease}
+              style={{
+                width: '100%', padding: '7px',
+                background: 'transparent', color: 'var(--text-mute)',
+                borderRadius: 'var(--radius-xs)', fontSize: 12, fontWeight: 600,
+                border: '1px solid var(--border)',
+              }}
+            >
+              Liberar pedido
+            </button>
+          )}
         </div>
       )}
 

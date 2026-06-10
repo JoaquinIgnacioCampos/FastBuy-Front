@@ -259,7 +259,7 @@ export default function App() {
 
   function handleBartenderLogin(session) {
     saveBartenderSession(session)
-    const bar = { id: session.barId, label: session.barLabel, location: '' }
+    const bar = { id: session.barId, label: session.barLabel, location: '', username: session.username, eventId: session.eventId }
     setBartenderBar(bar)
     go('bartender')
   }
