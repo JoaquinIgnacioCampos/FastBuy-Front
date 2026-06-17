@@ -22,6 +22,7 @@ import { createOrder, createPaymentPreference } from './services/api'
 
 const PENDING_KEY          = 'fb_pending_payment'
 const BARTENDER_SESSION_KEY = 'fb_bartender_session'
+const BARTENDER_BAR_KEY     = 'fb_bartender_bar'
 const SS_SCREEN = 'fb_screen'
 const SS_CART   = 'fb_cart'
 const SS_EVENT  = 'fb_event'
@@ -212,10 +213,15 @@ export default function App() {
   const [assignedBar, setAssignedBar] = useState(() => loadSS(SS_BAR))
   const [bartenderBar, setBartenderBar] = useState(() => {
     try {
+      // Prefer the directly-persisted bartenderBar object (covers both login and dev picker)
+      const bar = JSON.parse(localStorage.getItem(BARTENDER_BAR_KEY) || 'null')
+      if (bar) {
+        const urlBarId = barIdFromPath(location.pathname)
+        if (!urlBarId || urlBarId === bar.id) return bar
+      }
+      // Fall back to session key (written by handleBartenderLogin)
       const s = JSON.parse(localStorage.getItem(BARTENDER_SESSION_KEY) || 'null')
       if (s) {
-        // If the URL contains a specific barId (page refresh on /staff/:barId),
-        // only restore the session if it matches that bar.
         const urlBarId = barIdFromPath(location.pathname)
         if (!urlBarId || urlBarId === s.barId) {
           return { id: s.barId, label: s.barLabel, location: '', username: s.username, eventId: s.eventId }
@@ -236,6 +242,11 @@ export default function App() {
   useEffect(() => { selectedEvent ? saveSS(SS_EVENT, selectedEvent) : clearSS(SS_EVENT) }, [selectedEvent])
   useEffect(() => { activeOrder   ? saveSS(SS_ORDER, activeOrder)   : clearSS(SS_ORDER) }, [activeOrder])
   useEffect(() => { assignedBar   ? saveSS(SS_BAR, assignedBar)     : clearSS(SS_BAR) }, [assignedBar])
+  useEffect(() => {
+    bartenderBar
+      ? localStorage.setItem(BARTENDER_BAR_KEY, JSON.stringify(bartenderBar))
+      : localStorage.removeItem(BARTENDER_BAR_KEY)
+  }, [bartenderBar])
 
   useEffect(() => { document.documentElement.dataset.theme = theme }, [theme])
 
@@ -362,6 +373,7 @@ export default function App() {
 
   function handleLogout() {
     clearBartenderSession()
+    localStorage.removeItem(BARTENDER_BAR_KEY)
     setBartenderBar(null)
     clearSS(SS_SCREEN, SS_CART, SS_EVENT, SS_ORDER, SS_BAR)
     go('login')
