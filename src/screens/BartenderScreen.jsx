@@ -407,14 +407,6 @@ export default function BartenderScreen({ onBack, onPaymentSetup, scannerPhase, 
         borderBottom: '1px solid var(--border)',
         background: 'var(--surface)',
       }}>
-        {onPaymentSetup && (
-          <button
-            onClick={onPaymentSetup}
-            style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-dim)', padding: '6px 10px', borderRadius: 99, border: '1px solid var(--border)' }}
-          >
-            💳 Pagos
-          </button>
-        )}
         <button
           onClick={onBack}
           style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-mute)', padding: '6px 10px', borderRadius: 99, border: '1px solid var(--border)' }}
