@@ -1,4 +1,6 @@
-const BASE = '/api'
+// Dev: VITE_API_URL is unset → '/api' routes through the Vite proxy (→ :8080).
+// Prod: the static host sets VITE_API_URL to the backend origin (cross-origin).
+const BASE = import.meta.env.VITE_API_URL ?? '/api'
 
 async function req(url, opts) {
   const r = await fetch(url, opts)

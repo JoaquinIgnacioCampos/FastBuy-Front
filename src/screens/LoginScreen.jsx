@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useLoginBartender } from '../hooks/useLoginBartender.js'
 
-export default function LoginScreen({ onCustomer, onBartenderLogin, onBartenderPicker }) {
+export default function LoginScreen({ onCustomer, onBartenderLogin }) {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError]       = useState(null)
@@ -114,30 +114,6 @@ export default function LoginScreen({ onCustomer, onBartenderLogin, onBartenderP
             : 'Dejá los campos vacíos para entrar como cliente.'}
         </div>
       </form>
-
-      {/* Dev shortcut */}
-      <div style={{
-        width: '100%', paddingTop: 16,
-        borderTop: '1px dashed var(--border)',
-        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
-      }}>
-        <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-mute)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-          Dev / testing
-        </div>
-        <button
-          type="button"
-          onClick={onBartenderPicker}
-          className="tap-press"
-          style={{
-            fontSize: 13, fontWeight: 600, color: 'var(--text)',
-            padding: '10px 18px', borderRadius: 99,
-            border: '1px solid var(--border-strong)',
-            background: 'var(--surface2)',
-          }}
-        >
-          Vista bartender 🍹
-        </button>
-      </div>
     </div>
   )
 }

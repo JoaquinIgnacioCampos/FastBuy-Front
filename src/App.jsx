@@ -10,7 +10,6 @@ import PaymentScreen      from './screens/PaymentScreen'
 import QueueScreen        from './screens/QueueScreen'
 import QRScreen           from './screens/QRScreen'
 import BartenderScreen    from './screens/BartenderScreen'
-import BarSelectScreen    from './screens/BarSelectScreen'
 import PaymentSetupScreen from './screens/PaymentSetupScreen'
 import { useBars }                    from './hooks/useBars.js'
 import { useProductMap, resolveProduct } from './hooks/useMenu.js'
@@ -43,7 +42,6 @@ const SCREEN_TO_PATH = {
   offline:             '/queue',
   qr:                  '/pickup',
   confirmed:           '/pickup',
-  'bartender-bar':     '/staff/bars',
   bartender:           '/staff',
   'bartender-scanner': '/staff',
   'payment-setup':     '/staff/setup',
@@ -57,14 +55,12 @@ const PATH_TO_SCREEN = {
   '/payment':     'payment',
   '/queue':       'queue',
   '/pickup':      'qr',
-  '/staff/bars':  'bartender-bar',
   '/staff/setup': 'payment-setup',
   '/staff':       'bartender',
 }
 
 function pathToScreen(pathname) {
   if (pathname.startsWith('/staff/setup')) return 'payment-setup'
-  if (pathname.startsWith('/staff/bars'))  return 'bartender-bar'
   if (pathname.startsWith('/staff/'))      return 'bartender'
   return PATH_TO_SCREEN[pathname] ?? null
 }
@@ -86,7 +82,6 @@ const TITLES = {
   offline:             'Sin conexión',
   qr:                  'Retirar pedido',
   confirmed:           'Pedido retirado',
-  'bartender-bar':     'Seleccionar Barra',
   bartender:           '—',
   'bartender-scanner': '—',
   'payment-setup':     'Configurar pagos',
@@ -421,7 +416,6 @@ export default function App() {
           <LoginScreen
             onCustomer={() => go('welcome')}
             onBartenderLogin={handleBartenderLogin}
-            onBartenderPicker={() => go('bartender-bar')}
           />
         )}
 
@@ -478,10 +472,6 @@ export default function App() {
             event={selectedEvent}
             onConfirmed={() => { if (screen === 'confirmed') resetOrder(); else go('confirmed') }}
           />
-        )}
-
-        {screen === 'bartender-bar' && (
-          <BarSelectScreen onSelect={bar => { setBartenderBar(bar); go('bartender', { barId: bar.id }) }} />
         )}
 
         {(screen === 'bartender' || screen === 'bartender-scanner') && (

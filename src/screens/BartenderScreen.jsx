@@ -366,18 +366,6 @@ export default function BartenderScreen({ onBack, onPaymentSetup, scannerPhase, 
 
             <QRCameraScanner onScan={handleQRScan} />
 
-            <button
-              className="btn-primary"
-              onClick={() => {
-                const order = myReady[0]
-                if (order) {
-                  const simulatedQR = JSON.stringify({ id: order.id, total: order.total, items: order.items })
-                  handleQRScan(simulatedQR)
-                }
-              }}
-            >
-              Simular escaneo exitoso ✓
-            </button>
             <button className="btn-secondary" onClick={handleCancelScan}>
               Cancelar
             </button>

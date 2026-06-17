@@ -71,3 +71,11 @@ React 19 + Vite frontend for FastBuy. Runs on port 5173. Started via `start-fast
 - `useAdvanceOrder` mutation arg changed from `id` to `{ id, bartenderId }`. Optimistic update sets `claimedBy` when QUEUE→PREPARING.
 - New `useReleaseOrder(barId)` hook in `src/hooks/useReleaseOrder.js`.
 - `BartenderScreen`: `preparingOnly` split into `myPreparing` (`claimedBy === myUsername` or unclaimed) and `othersPreparing` (`claimedBy` set to another user). My orders show "Marcar listo" + "Liberar pedido" buttons. Others' orders render as read-only cards at 65% opacity with a `🔒 [username]` chip in the header. Locked orders have no action buttons.
+
+### 2026-06-17 — Production deploy prep (branch `production`)
+- Deployment topology (planned): **split** — React build on **Cloudflare Pages** (CDN, SPA routing, free custom domain), Spring Boot API on **Render** (free Docker web service), **Neon Postgres** replacing H2 in prod. Payments stay **simulated** in prod (leave `MP_ACCESS_TOKEN` unset). Backend routes stay at root — no `/api` prefix needed because the split is cross-origin via CORS.
+- `src/services/api.js`: `BASE = import.meta.env.VITE_API_URL ?? '/api'`. Dev unchanged (Vite proxy strips `/api` → :8080). Cloudflare build sets `VITE_API_URL=https://<backend>.onrender.com` so prod calls hit the backend cross-origin.
+- New `public/_redirects` (`/* /index.html 200`) so Cloudflare serves the SPA for deep-link refreshes.
+- **Removed the bartender dev shortcut** ("Vista bartender 🍹" on `LoginScreen`) and the bar-picker flow it fed: `BarSelectScreen.jsx` deleted; `bartender-bar` screen + `/staff/bars` route + `onBartenderPicker` prop removed from `App.jsx`. Bartenders enter only via real login now.
+- **Removed the "Simular escaneo exitoso ✓"** button from `BartenderScreen`'s QR scanner — only the real camera scan + Cancelar remain.
+- Backend pairing changes live in `FastBuy-Back` on its own `production` branch.
