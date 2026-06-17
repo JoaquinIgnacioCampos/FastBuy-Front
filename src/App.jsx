@@ -57,8 +57,20 @@ const PATH_TO_SCREEN = {
   '/queue':       'queue',
   '/pickup':      'qr',
   '/staff/bars':  'bartender-bar',
-  '/staff':       'bartender',
   '/staff/setup': 'payment-setup',
+  '/staff':       'bartender',
+}
+
+function pathToScreen(pathname) {
+  if (pathname.startsWith('/staff/setup')) return 'payment-setup'
+  if (pathname.startsWith('/staff/bars'))  return 'bartender-bar'
+  if (pathname.startsWith('/staff/'))      return 'bartender'
+  return PATH_TO_SCREEN[pathname] ?? null
+}
+
+function barIdFromPath(pathname) {
+  const m = pathname.match(/^\/staff\/([^/]+)$/)
+  return m ? m[1] : null
 }
 
 const TITLES = {
@@ -181,13 +193,18 @@ export default function App() {
   const [screen, setScreenRaw] = useState(() => {
     if (initialReturn?.status === 'approved' && initialReturn.pending) return 'queue'
     if (initialReturn?.status === 'rejected' || initialReturn?.status === 'failure') return 'rejected'
-    return loadSS(SS_SCREEN) ?? PATH_TO_SCREEN[location.pathname] ?? 'login'
+    return loadSS(SS_SCREEN) ?? pathToScreen(location.pathname) ?? 'login'
   })
 
-  function go(s) {
+  function go(s, opts = {}) {
     setScreenRaw(s)
     saveSS(SS_SCREEN, s)
-    navigate(SCREEN_TO_PATH[s] ?? '/')
+    const barId = opts.barId ?? bartenderBar?.id
+    const path =
+      (s === 'bartender' || s === 'bartender-scanner') && barId
+        ? `/staff/${barId}`
+        : SCREEN_TO_PATH[s] ?? '/'
+    navigate(path)
   }
 
   const [cart, setCart]               = useState(() => loadSS(SS_CART) ?? {})
@@ -196,7 +213,14 @@ export default function App() {
   const [bartenderBar, setBartenderBar] = useState(() => {
     try {
       const s = JSON.parse(localStorage.getItem(BARTENDER_SESSION_KEY) || 'null')
-      if (s) return { id: s.barId, label: s.barLabel, location: '', username: s.username, eventId: s.eventId }
+      if (s) {
+        // If the URL contains a specific barId (page refresh on /staff/:barId),
+        // only restore the session if it matches that bar.
+        const urlBarId = barIdFromPath(location.pathname)
+        if (!urlBarId || urlBarId === s.barId) {
+          return { id: s.barId, label: s.barLabel, location: '', username: s.username, eventId: s.eventId }
+        }
+      }
     } catch {}
     return null
   })
@@ -333,7 +357,7 @@ export default function App() {
     saveBartenderSession(session)
     const bar = { id: session.barId, label: session.barLabel, location: '', username: session.username, eventId: session.eventId }
     setBartenderBar(bar)
-    go('bartender')
+    go('bartender', { barId: session.barId })
   }
 
   function handleLogout() {
@@ -348,7 +372,7 @@ export default function App() {
   const onBack     =
     screen === 'menu'          ? handleBackFromMenu :
     backTarget                 ? () => go(backTarget) :
-    screen === 'payment-setup' ? () => go('bartender') :
+    screen === 'payment-setup' ? () => go('bartender', { barId: bartenderBar?.id }) :
     null
 
   return (
@@ -445,7 +469,7 @@ export default function App() {
         )}
 
         {screen === 'bartender-bar' && (
-          <BarSelectScreen onSelect={bar => { setBartenderBar(bar); go('bartender') }} />
+          <BarSelectScreen onSelect={bar => { setBartenderBar(bar); go('bartender', { barId: bar.id }) }} />
         )}
 
         {(screen === 'bartender' || screen === 'bartender-scanner') && (
@@ -453,8 +477,8 @@ export default function App() {
             onBack={handleLogout}
             onPaymentSetup={bartenderBar?.eventId ? () => go('payment-setup') : null}
             scannerPhase={screen === 'bartender-scanner'}
-            onScannerOpen={() => go('bartender-scanner')}
-            onScannerClose={() => go('bartender')}
+            onScannerOpen={() => go('bartender-scanner', { barId: bartenderBar?.id })}
+            onScannerClose={() => go('bartender', { barId: bartenderBar?.id })}
             bartenderBar={bartenderBar}
           />
         )}
