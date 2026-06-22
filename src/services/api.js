@@ -52,10 +52,13 @@ export async function createOrder(items, bar, total, eventId) {
   return r.json()
 }
 
-export async function getOrderStatus(orderId, barId) {
-  const r = await req(`${BASE}/orders?bar=${barId}`)
-  const orders = await r.json()
-  return orders.find(o => o.id === orderId) ?? null
+export async function getOrderStatus(orderId) {
+  // Look up the single order in any state (queue/preparing/ready/delivered/cancelled).
+  // 404 means it no longer exists at all.
+  const r = await fetch(`${BASE}/orders/${orderId}`)
+  if (r.status === 404) return null
+  if (!r.ok) throw new Error(`${r.status}`)
+  return r.json()
 }
 
 // ── Catalog ──────────────────────────────────────────────────────────────────

@@ -43,6 +43,7 @@ const SCREEN_TO_PATH = {
   offline:             '/queue',
   qr:                  '/pickup',
   confirmed:           '/pickup',
+  'order-cancelled':   '/cancelled',
   'bartender-bar':     '/staff/bars',
   bartender:           '/staff',
   'bartender-scanner': '/staff',
@@ -57,6 +58,7 @@ const PATH_TO_SCREEN = {
   '/payment':     'payment',
   '/queue':       'queue',
   '/pickup':      'qr',
+  '/cancelled':   'order-cancelled',
   '/staff/bars':  'bartender-bar',
   '/staff/setup': 'payment-setup',
   '/staff':       'bartender',
@@ -86,6 +88,7 @@ const TITLES = {
   offline:             'Sin conexión',
   qr:                  'Retirar pedido',
   confirmed:           'Pedido retirado',
+  'order-cancelled':   'Pedido cancelado',
   'bartender-bar':     'Seleccionar Barra',
   bartender:           '—',
   'bartender-scanner': '—',
@@ -297,21 +300,28 @@ export default function App() {
     }
   }
 
-  const pollEnabled = !!activeOrder && (screen === 'queue' || screen === 'preparing' || screen === 'qr')
-  const { data: liveOrder } = useOrderStatus(activeOrder?.id, activeOrder?.bar, { enabled: pollEnabled })
+  const pollEnabled = !!activeOrder && (screen === 'queue' || screen === 'preparing' || screen === 'ready' || screen === 'qr')
+  const { data: liveOrder } = useOrderStatus(activeOrder?.id, { enabled: pollEnabled })
 
   useEffect(() => {
     if (!pollEnabled || liveOrder === undefined) return
     if (liveOrder === null) {
-      if (screen === 'qr') go('confirmed')
+      // Order no longer exists: a vanished pickup reads as delivered, otherwise cancelled.
+      go(screen === 'qr' ? 'confirmed' : 'order-cancelled')
       return
     }
     const status = liveOrder.status
-    if (status === 'ready' && (screen === 'queue' || screen === 'preparing')) {
-      notifyOrderReady()
-      go('ready')
-    } else if (status === 'preparing' && screen === 'queue') {
-      go('preparing')
+    // Terminal states first
+    if (status === 'delivered') { go('confirmed'); return }
+    if (status === 'cancelled') { go('order-cancelled'); return }
+    // Keep the customer's screen in sync with the live status — forward AND backward,
+    // so a bartender freeing a PREPARING order sends the customer back to 'queue'.
+    if (status === 'ready') {
+      if (screen !== 'ready' && screen !== 'qr') { notifyOrderReady(); go('ready') }
+    } else if (status === 'preparing') {
+      if (screen !== 'preparing') go('preparing')
+    } else if (status === 'queue') {
+      if (screen !== 'queue') go('queue')
     }
   }, [liveOrder, screen, pollEnabled]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -496,6 +506,25 @@ export default function App() {
             event={selectedEvent}
             onConfirmed={() => { if (screen === 'confirmed') resetOrder(); else go('confirmed') }}
           />
+        )}
+
+        {screen === 'order-cancelled' && (
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 20, padding: 32 }}>
+            <div style={{
+              width: 72, height: 72, borderRadius: '50%',
+              background: 'var(--warn-dim)', border: '2px solid var(--warn)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32,
+            }}>🚫</div>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>Pedido cancelado</div>
+              <div style={{ fontSize: 14, color: 'var(--text-dim)', lineHeight: 1.5 }}>
+                La barra canceló tu pedido. Si creés que fue un error, acercate a la barra.
+              </div>
+            </div>
+            <button className="btn-primary" onClick={resetOrder} style={{ width: '100%' }}>
+              Volver al menú
+            </button>
+          </div>
         )}
 
         {screen === 'bartender-bar' && (
