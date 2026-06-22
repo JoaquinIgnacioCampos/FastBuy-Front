@@ -98,6 +98,11 @@ const BACK_TARGETS = {
   rejected: 'order',
 }
 
+// Transient checkout screens must never be auto-resumed from persisted state:
+// 'paying' immediately re-fires the payment effect (with a possibly-empty cart,
+// which fails), and 'payment'/'rejected' are mid-flow steps.
+const TRANSIENT_SCREENS = new Set(['payment', 'paying', 'rejected'])
+
 // ── Persisted-flow helpers ────────────────────────────────────────────────────
 // Backed by localStorage (not sessionStorage) so a customer who closes the app
 // mid-order can reopen it on the same device and land back on their order/queue.
@@ -167,9 +172,9 @@ function StatusBar({ status }) {
   )
 }
 
-function NavBar({ title, onBack, right, theme, onToggleTheme }) {
+function NavBar({ title, onBack, right, theme, onToggleTheme, variant }) {
   return (
-    <div className="nav-bar">
+    <div className={`nav-bar${variant === 'bartender' ? ' nav-bar--bartender' : ''}`}>
       {onBack ? (
         <button className="back-btn" onClick={onBack}>‹</button>
       ) : (
@@ -197,7 +202,9 @@ export default function App() {
   const [screen, setScreenRaw] = useState(() => {
     if (initialReturn?.status === 'approved' && initialReturn.pending) return 'queue'
     if (initialReturn?.status === 'rejected' || initialReturn?.status === 'failure') return 'rejected'
-    return loadSS(SS_SCREEN) ?? pathToScreen(location.pathname) ?? 'login'
+    const saved = loadSS(SS_SCREEN)
+    if (saved && !TRANSIENT_SCREENS.has(saved)) return saved
+    return pathToScreen(location.pathname) ?? 'login'
   })
 
   function go(s, opts = {}) {
@@ -386,7 +393,8 @@ export default function App() {
     go('login')
   }
 
-  const navTitle   = screen === 'bartender' || screen === 'bartender-scanner' ? (bartenderBar?.label ?? 'Barra') : title
+  const isBartenderView = screen === 'bartender' || screen === 'bartender-scanner'
+  const navTitle   = isBartenderView ? (bartenderBar?.label ?? 'Barra') : title
   const showNavBar = !!navTitle && screen !== 'login' && screen !== 'welcome'
   const onBack     =
     screen === 'menu'          ? handleBackFromMenu :
@@ -404,7 +412,10 @@ export default function App() {
           onBack={onBack}
           theme={theme}
           onToggleTheme={toggleTheme}
-          right={null}
+          variant={isBartenderView ? 'bartender' : undefined}
+          right={isBartenderView ? (
+            <button className="bartender-logout" onClick={handleLogout}>Cerrar sesión</button>
+          ) : null}
         />
       )}
 

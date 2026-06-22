@@ -402,21 +402,6 @@ export default function BartenderScreen({ onBack, onPaymentSetup, scannerPhase, 
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-      {/* Bartender action row */}
-      <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'flex-end',
-        gap: 8, padding: '8px 16px',
-        borderBottom: '1px solid var(--border)',
-        background: 'var(--surface)',
-      }}>
-        <button
-          onClick={onBack}
-          style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-mute)', padding: '6px 10px', borderRadius: 99, border: '1px solid var(--border)' }}
-        >
-          Cerrar sesión
-        </button>
-      </div>
-
       {/* Tabs */}
       <div style={{ display: 'flex', borderBottom: '1px solid var(--border)' }}>
         {[
