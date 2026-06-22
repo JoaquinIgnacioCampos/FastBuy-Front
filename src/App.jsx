@@ -258,7 +258,11 @@ export default function App() {
     if (!initialReturn) return
     const pending = loadPending()
     clearPending()
-    window.history.replaceState({}, '', window.location.pathname)
+    // Collapse any duplicate slashes (e.g. a trailing-slash web-origin yields
+    // "//?status=...") and fall back to "/" so replaceState never gets an
+    // invalid protocol-relative URL like "//".
+    const cleanPath = window.location.pathname.replace(/\/{2,}/g, '/') || '/'
+    window.history.replaceState({}, '', cleanPath)
     if (!pending || initialReturn.status !== 'approved') return
     const { items, total, event } = pending
     createOrder(items, undefined, total, event?.id)
