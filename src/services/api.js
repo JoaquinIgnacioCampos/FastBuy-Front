@@ -38,6 +38,11 @@ export async function markDelivered(id) {
   return r.json()
 }
 
+export async function cancelOrder(id) {
+  const r = await req(`${BASE}/orders/${id}/cancel`, { method: 'POST' })
+  return r.json()
+}
+
 export async function createOrder(items, bar, total, eventId) {
   const r = await req(`${BASE}/orders`, {
     method: 'POST',

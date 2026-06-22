@@ -6,6 +6,7 @@ import { useOrders } from '../hooks/useOrders.js'
 import { useDeliveredOrders } from '../hooks/useDeliveredOrders.js'
 import { useAdvanceOrder } from '../hooks/useAdvanceOrder.js'
 import { useReleaseOrder } from '../hooks/useReleaseOrder.js'
+import { useCancelOrder } from '../hooks/useCancelOrder.js'
 import { useMarkDelivered } from '../hooks/useMarkDelivered.js'
 import { ErrorPanel } from '../components/QueryStates.jsx'
 
@@ -198,6 +199,7 @@ export default function BartenderScreen({ onBack, onPaymentSetup, scannerPhase, 
   const deliveredQuery = useDeliveredOrders(barId)
   const advanceMutation = useAdvanceOrder(barId)
   const releaseMutation = useReleaseOrder(barId)
+  const cancelMutation  = useCancelOrder(barId)
   const deliverMutation = useMarkDelivered(barId)
 
   const delivered = deliveredQuery.data ?? []
@@ -460,7 +462,15 @@ export default function BartenderScreen({ onBack, onPaymentSetup, scannerPhase, 
                 <>
                   <SubHeader label="Listos para retirar" count={myReady.length} hint="Escaneá el QR del cliente" />
                   {myReady.map(order => (
-                    <BartenderCard key={order.id} order={order} onAction={onScannerOpen} actionLabel="Escanear QR 📷" actionColor="var(--mp)" />
+                    <BartenderCard
+                      key={order.id}
+                      order={order}
+                      onAction={onScannerOpen}
+                      actionLabel="Escanear QR 📷"
+                      actionColor="var(--mp)"
+                      onCancel={() => cancelMutation.mutate(order.id)}
+                      cancelLabel="Cancelar (no-show)"
+                    />
                   ))}
                 </>
               )}
@@ -564,7 +574,7 @@ function SubHeader({ label, count, hint }) {
   )
 }
 
-function BartenderCard({ order, onAction, actionLabel, actionColor, onRelease, disabled, locked, disabledAction }) {
+function BartenderCard({ order, onAction, actionLabel, actionColor, onRelease, onCancel, cancelLabel, disabled, locked, disabledAction }) {
   const productMap = useProductMap()
   const displayItems = order.items.map(makeResolver(productMap))
   return (
@@ -637,6 +647,19 @@ function BartenderCard({ order, onAction, actionLabel, actionColor, onRelease, d
               }}
             >
               Liberar pedido
+            </button>
+          )}
+          {onCancel && (
+            <button
+              onClick={onCancel}
+              style={{
+                width: '100%', padding: '7px',
+                background: 'transparent', color: 'var(--danger)',
+                borderRadius: 'var(--radius-xs)', fontSize: 12, fontWeight: 600,
+                border: '1px solid var(--danger)',
+              }}
+            >
+              {cancelLabel ?? 'Cancelar pedido'}
             </button>
           )}
         </div>

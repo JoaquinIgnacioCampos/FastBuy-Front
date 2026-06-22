@@ -98,11 +98,14 @@ const BACK_TARGETS = {
   rejected: 'order',
 }
 
-// ── SessionStorage helpers ────────────────────────────────────────────────────
+// ── Persisted-flow helpers ────────────────────────────────────────────────────
+// Backed by localStorage (not sessionStorage) so a customer who closes the app
+// mid-order can reopen it on the same device and land back on their order/queue.
+// Cleared on delivery (resetOrder), logout, and leaving an event.
 
-function loadSS(key)        { try { return JSON.parse(sessionStorage.getItem(key)) } catch { return null } }
-function saveSS(key, val)   { try { sessionStorage.setItem(key, JSON.stringify(val)) } catch {} }
-function clearSS(...keys)   { keys.forEach(k => { try { sessionStorage.removeItem(k) } catch {} }) }
+function loadSS(key)        { try { return JSON.parse(localStorage.getItem(key)) } catch { return null } }
+function saveSS(key, val)   { try { localStorage.setItem(key, JSON.stringify(val)) } catch {} }
+function clearSS(...keys)   { keys.forEach(k => { try { localStorage.removeItem(k) } catch {} }) }
 
 // ── localStorage helpers ──────────────────────────────────────────────────────
 
@@ -267,7 +270,7 @@ export default function App() {
     const { items, total, event } = pending
     createOrder(items, undefined, total, event?.id)
       .then(order => {
-        const bar = { id: order.bar, label: order.bar, location: '' }
+        const bar = { id: order.bar, label: order.barLabel ?? order.bar, location: '' }
         setActiveOrder(order)
         setAssignedBar(bar)
       })
@@ -326,7 +329,7 @@ export default function App() {
           // Simulated path: create the order now (no real payment needed)
           const order = await createOrder(items, undefined, total, selectedEvent?.id)
           if (cancelled) return
-          const bar = bars.find(b => b.id === order.bar) ?? { id: order.bar, label: order.bar, location: '' }
+          const bar = bars.find(b => b.id === order.bar) ?? { id: order.bar, label: order.barLabel ?? order.bar, location: '' }
           clearPending()
           setAssignedBar(bar)
           setActiveOrder(order)
@@ -407,7 +410,7 @@ export default function App() {
 
       <div
         key={screen}
-        className="screen-fade"
+        className={`screen-fade${(screen === 'bartender' || screen === 'bartender-scanner') ? ' bartender-scope' : ''}`}
         style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}
       >
         {(screen === 'login' || screen === 'welcome') && (
