@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
+import { QRCodeCanvas } from 'qrcode.react'
 import PaymentSetupScreen from './PaymentSetupScreen'
 
 const TABS = [
@@ -49,11 +50,23 @@ export default function AdminScreen({ eventId, eventName }) {
   )
 }
 
-function QRTab({ eventName }) {
+function QRTab({ eventId, eventName }) {
+  const canvasRef = useRef(null)
+  const url = `${window.location.origin}/e/${eventId}`
+
+  function handleDownload() {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const link = document.createElement('a')
+    link.download = `fastbuy-qr-${eventId}.png`
+    link.href = canvas.toDataURL('image/png')
+    link.click()
+  }
+
   return (
     <div style={{
       flex: 1, display: 'flex', flexDirection: 'column',
-      padding: '24px 24px', gap: 20, overflowY: 'auto',
+      padding: '24px', gap: 20, overflowY: 'auto',
     }}>
       {/* Header */}
       <div>
@@ -64,32 +77,40 @@ function QRTab({ eventName }) {
         <div style={{ fontSize: 13, color: 'var(--text-dim)', marginTop: 4 }}>{eventName}</div>
       </div>
 
-      {/* QR placeholder */}
-      <div style={{
-        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16,
-        padding: '32px 24px',
-        background: 'var(--surface2)', border: '1px dashed var(--border-strong)',
-        borderRadius: 'var(--radius)',
-      }}>
+      {/* QR code */}
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
         <div style={{
-          width: 140, height: 140,
-          background: 'var(--surface3)', borderRadius: 'var(--radius-sm)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 48, border: '1px solid var(--border-strong)',
+          background: '#fff', borderRadius: 'var(--radius)',
+          padding: 20,
+          boxShadow: '0 4px 24px rgba(0,0,0,0.35)',
         }}>
-          📲
+          <QRCodeCanvas
+            ref={canvasRef}
+            value={url}
+            size={200}
+            level="M"
+            marginSize={1}
+          />
         </div>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>QR pendiente de configuración</div>
-          <div style={{ fontSize: 12, color: 'var(--text-mute)', lineHeight: 1.5 }}>
-            Desde acá podrás generar el código QR que los asistentes escanean para entrar al evento.
-          </div>
+
+        {/* URL label */}
+        <div style={{
+          background: 'var(--surface2)', border: '1px solid var(--border)',
+          borderRadius: 'var(--radius-xs)', padding: '7px 12px',
+          fontSize: 11, fontFamily: 'monospace', color: 'var(--text-dim)',
+          wordBreak: 'break-all', textAlign: 'center', maxWidth: '100%',
+        }}>
+          {url}
         </div>
       </div>
 
       <div style={{ fontSize: 12, color: 'var(--text-mute)', lineHeight: 1.6 }}>
-        El QR lleva a los asistentes directamente a la pantalla del evento en FastBuy, sin necesidad de buscar el evento manualmente.
+        Los asistentes que escaneen este código ingresan directamente al menú del evento, sin pasar por la pantalla de bienvenida.
       </div>
+
+      <button className="btn-primary" onClick={handleDownload}>
+        Descargar QR
+      </button>
     </div>
   )
 }

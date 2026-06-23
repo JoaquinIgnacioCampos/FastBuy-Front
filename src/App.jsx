@@ -13,6 +13,7 @@ import BartenderScreen    from './screens/BartenderScreen'
 import PaymentSetupScreen from './screens/PaymentSetupScreen'
 import AdminScreen        from './screens/AdminScreen'
 import { useBars }                    from './hooks/useBars.js'
+import { useEvents }                  from './hooks/useEvents.js'
 import { useProductMap, resolveProduct } from './hooks/useMenu.js'
 import { useOrderStatus }             from './hooks/useOrderStatus.js'
 import { useBackendHealth }           from './hooks/useBackendHealth.js'
@@ -20,7 +21,7 @@ import { createOrder, createPaymentPreference, loginBartender, loginAdmin } from
 import { useScreen } from './hooks/useScreen.js'
 import { loadPersisted, savePersisted, clearPersisted,
          PERSIST_SCREEN, PERSIST_CART, PERSIST_EVENT, PERSIST_ORDER, PERSIST_BAR } from './lib/persist.js'
-import { TITLES, BACK_TARGETS, barIdFromPath, TRANSIENT_SCREENS } from './lib/screens.js'
+import { TITLES, BACK_TARGETS, barIdFromPath, TRANSIENT_SCREENS, eventIdFromPath } from './lib/screens.js'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -106,6 +107,8 @@ function readReturnFromPayment() {
 // Determines the initial screen based on persisted role + sessions.
 // Called once at boot (inside useScreen's lazy useState initializer).
 function computeInitialScreen() {
+  if (eventIdFromPath(window.location.pathname)) return 'welcome'
+
   const role = loadRole()
   if (!role) return 'role-picker'
 
@@ -229,6 +232,12 @@ export default function App() {
   const productMap = useProductMap()
   const healthStatus = useBackendHealth()
 
+  // QR deep link: /e/:eventId — auto-select the event and jump to menu.
+  // qrEventId is derived once at boot from the URL; useState (not ref) so
+  // useEvents' enabled flag is stable across renders.
+  const [qrEventId] = useState(() => eventIdFromPath(window.location.pathname))
+  const { data: qrEvents = [] } = useEvents({ enabled: !!qrEventId })
+
   // Persist customer state
   useEffect(() => { savePersisted(PERSIST_CART, cart) }, [cart])
   useEffect(() => { selectedEvent ? savePersisted(PERSIST_EVENT, selectedEvent) : clearPersisted(PERSIST_EVENT) }, [selectedEvent])
@@ -242,6 +251,15 @@ export default function App() {
   }, [bartenderBar])
 
   useEffect(() => { document.documentElement.dataset.theme = theme }, [theme])
+
+  useEffect(() => {
+    if (!qrEventId || !qrEvents.length || selectedEvent) return
+    const event = qrEvents.find(e => e.id === qrEventId)
+    if (!event) return
+    saveRole('user')
+    setSelectedEvent(event)
+    go('menu')
+  }, [qrEvents]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Handle return from Mercado Pago redirect.
   useEffect(() => {

@@ -1,13 +1,14 @@
 import { useQuery } from '@tanstack/react-query'
 import { getEvents } from '../services/api'
 
-export function useEvents() {
+export function useEvents(opts = {}) {
   return useQuery({
     queryKey: ['events'],
     queryFn: getEvents,
     // Events change slowly; revalidate every 60s when the user is on the welcome screen.
     refetchInterval: 60_000,
     staleTime: 30_000,
+    ...opts,
   })
 }
 
