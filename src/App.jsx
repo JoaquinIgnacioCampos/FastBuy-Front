@@ -389,6 +389,7 @@ export default function App() {
             bar={assignedBar}
             activeOrder={activeOrder}
             queuePosition={liveOrder?.queuePosition}
+            etaMinutes={liveOrder?.etaMinutes}
             offline={screen === 'offline'}
             onReady={() => go('qr')}
             onOfflineRetry={() => go('queue')}

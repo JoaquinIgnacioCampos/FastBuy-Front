@@ -8,7 +8,7 @@ const STEPS = [
   { key: 'ready',     label: 'Listo',       sub: 'Acercate a la barra a retirarlo' },
 ]
 
-export default function QueueScreen({ phase, cart, bar, activeOrder, queuePosition, offline, onReady, onOfflineRetry }) {
+export default function QueueScreen({ phase, cart, bar, activeOrder, queuePosition, etaMinutes, offline, onReady, onOfflineRetry }) {
   const [elapsedSec, setElapsedSec] = useState(0)
   const productMap = useProductMap()
   const { total, totalItems } = useMemo(() => {
@@ -123,7 +123,7 @@ export default function QueueScreen({ phase, cart, bar, activeOrder, queuePositi
               <span className="animate-pulse" style={{ fontSize: 18 }}>⏳</span>
               <span style={{ fontSize: 13, color: 'var(--accent)', fontWeight: 600 }}>
                 {queuePosition != null
-                  ? `Posición en cola: #${queuePosition} · Espera estimada ~${queuePosition * 3} min`
+                  ? `Posición en cola: #${queuePosition}${etaMinutes != null ? ` · Espera estimada ~${etaMinutes} min` : ''}`
                   : 'Tu pedido está en cola, esperando turno'}
               </span>
             </div>
