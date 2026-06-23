@@ -14,7 +14,7 @@ import { useBars }                    from './hooks/useBars.js'
 import { useProductMap, resolveProduct } from './hooks/useMenu.js'
 import { useOrderStatus }             from './hooks/useOrderStatus.js'
 import { useBackendHealth }           from './hooks/useBackendHealth.js'
-import { createOrder, createPaymentPreference } from './services/api'
+import { createOrder, createPaymentPreference, loginBartender } from './services/api'
 import { useScreen } from './hooks/useScreen.js'
 import { loadPersisted, savePersisted, clearPersisted,
          PERSIST_SCREEN, PERSIST_CART, PERSIST_EVENT, PERSIST_ORDER, PERSIST_BAR } from './lib/persist.js'
@@ -26,6 +26,18 @@ const PENDING_KEY          = 'fb_pending_payment'
 const BARTENDER_SESSION_KEY = 'fb_bartender_session'
 const BARTENDER_BAR_KEY     = 'fb_bartender_bar'
 
+// DEV ONLY (develop branch — the picker/shortcut is stripped on production):
+// the "Vista bartender" picker auto-logs-in with the seed credentials so the
+// dev bar gets a real server-issued token and the auth-gated writes
+// (advance/deliver/cancel/release) work without typing credentials.
+// Keyed by bar id, which equals the seeded bartender username.
+const DEV_BARTENDER_PASSWORDS = {
+  'eclipse-north':  'norte123',
+  'eclipse-center': 'centro123',
+  'eclipse-south':  'sur123',
+  'cumbia-main':    'principal123',
+  'cumbia-vip':     'vip123',
+}
 // ── localStorage helpers ──────────────────────────────────────────────────────
 
 function savePending(payload) {
@@ -293,6 +305,24 @@ export default function App() {
     go('bartender', { barId: session.barId })
   }
 
+  // Dev picker: auto-authenticate with the seed credentials so a real token is
+  // stored and gated writes work. Falls back to opening the view unauthenticated
+  // (writes will 401) if the bar isn't a known seed or the backend is down.
+  async function handleDevBartenderSelect(bar) {
+    const password = DEV_BARTENDER_PASSWORDS[bar.id]
+    if (password) {
+      try {
+        const session = await loginBartender(bar.id, password)
+        handleBartenderLogin(session)
+        return
+      } catch {
+        // fall through to unauthenticated view
+      }
+    }
+    setBartenderBar(bar)
+    go('bartender', { barId: bar.id })
+  }
+
   function handleLogout() {
     clearBartenderSession()
     localStorage.removeItem(BARTENDER_BAR_KEY)
@@ -425,6 +455,11 @@ export default function App() {
             </button>
           </div>
         )}
+
+        {screen === 'bartender-bar' && (
+          <BarSelectScreen onSelect={handleDevBartenderSelect} />
+        )}
+
 
         {(screen === 'bartender' || screen === 'bartender-scanner') && (
           <BartenderScreen
