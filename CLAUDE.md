@@ -85,6 +85,18 @@ React 19 + Vite frontend for FastBuy. Runs on port 5173. Started via `start-fast
 - **Dev MP test product:** `p_test` ("Test MP $5", served at all bars) floats to the **top** of the menu (`MenuScreen` `items` sort). It only exists in the dev seed, so the sort is a no-op in prod.
 - All the above are on **develop**; not yet cherry-picked to **production**.
 
+### 2026-06-23 — Role system: role picker, admin auth, payment-account gating (develop)
+- **Role picker** (`RolePickerScreen`) is the new initial screen (`/`). Three buttons: "Entrar al evento" (user), "Soy bartender", "Soy organizador". `fb_role` in localStorage persists the choice; boot routes to the chosen role's entry view (or picker if unset).
+- **Admin role** is per-event (event organizer, not system admin). `POST /auth/admin/login` backed by `admin_users` table (mirrors bartender_users but keyed to an event). `AdminAuthInterceptor` gates POST/DELETE `/events/*/payment-account`; GET stays open.
+- **Admin view** = PaymentSetupScreen scoped to the admin's event (from `fb_admin_session`). Nav shows event name + "Cerrar sesión". `← Cambiar rol` button = logout back to role picker.
+- **LoginScreen** is now role-parameterized (`role='bartender'|'admin'`). Admin login form has dev shortcut buttons (e1/e2/e3) that auto-auth with seeded creds — develop only. `DEV_ADMIN_CREDS` map mirrors `DEV_BARTENDER_PASSWORDS`.
+- **All logouts** clear `fb_role` and return to `role-picker`. "Cambiar rol" link in login forms goes back to picker too.
+- **screens.js**: `role-picker` → `/` (replaces old `login`), `login` → `/login`, `admin-login` → `/admin/login`, `admin` → `/admin`.
+- **api.js**: `loginAdmin`, `adminAuthHeaders()` (reads `fb_admin_session.token`), payment-account writes send admin auth headers.
+- **Admin seed** (DataInitializer): `admin-eclipse/eclipse2025 → e1`, `admin-cumbia/cumbia2025 → e2`, `admin-cosquin/cosquin2025 → e3`, `admin-lolla/lolla2025 → e5`.
+- **prod migration**: `deploy/migrate-2026-06-24.sql` creates `admin_users` table (`CREATE TABLE IF NOT EXISTS`).
+- **postgres-init.sql** added to develop branch (was production-only).
+
 ### 2026-06-22 — Code-review pass (develop)
 - **Bartender writes are auth-gated.** advance/deliver/cancel/release send `Authorization: Bearer <token>` (read from the stored bartender session by `bartenderAuthHeaders()` in `api.js`). Login now returns a `token`. **After this deploys you must log out/in** — pre-existing sessions have no token and their writes 401.
 - **App.jsx slimmed.** The screen state machine moved to `src/hooks/useScreen.js`; routing maps + `pathToScreen`/`barIdFromPath`/`TITLES`/`BACK_TARGETS`/`TRANSIENT_SCREENS` to `src/lib/screens.js`; localStorage `PERSIST_*` helpers to `src/lib/persist.js`. `go()` resolves the bartender bar id lazily via a ref. (Persistence helpers were renamed `loadSS`→`loadPersisted` etc. earlier in the pass.)
