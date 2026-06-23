@@ -22,6 +22,16 @@
   --danger-dim: oklch(0.72 0.21 27 / 0.16);
   --mp: #00b1ea;
   --mp-dim: rgba(0,177,234,0.15);
+
+  /* Role-specific accent palette — used by .bartender-scope and .admin-scope */
+  --bartender-accent:      oklch(0.76 0.22 252);
+  --bartender-accent-dim:  oklch(0.76 0.22 252 / 0.14);
+  --bartender-accent-on:   #fff;
+  --bartender-accent-glow: oklch(0.76 0.22 252 / 0.32);
+  --admin-accent:          oklch(0.83 0.18 52);
+  --admin-accent-dim:      oklch(0.83 0.18 52 / 0.14);
+  --admin-accent-on:       #1a0800;
+  --admin-accent-glow:     oklch(0.83 0.18 52 / 0.32);
   --radius-lg: 20px;
   --radius: 16px;
   --radius-sm: 10px;
@@ -58,18 +68,33 @@
   --danger-dim: oklch(0.52 0.21 27 / 0.14);
   --mp: #0080b0;
   --mp-dim: rgba(0,128,176,0.14);
+
+  --bartender-accent:      oklch(0.44 0.20 252);
+  --bartender-accent-dim:  oklch(0.44 0.20 252 / 0.12);
+  --bartender-accent-on:   #fff;
+  --bartender-accent-glow: oklch(0.44 0.20 252 / 0.28);
+  --admin-accent:          oklch(0.50 0.16 52);
+  --admin-accent-dim:      oklch(0.50 0.16 52 / 0.12);
+  --admin-accent-on:       #fff;
+  --admin-accent-glow:     oklch(0.50 0.16 52 / 0.28);
   --shadow-card: 0 1px 2px rgba(0,0,0,0.05), 0 0 0 1px var(--border);
   --shadow-float: 0 -10px 24px -10px rgba(0,0,0,0.18);
 }
 
-/* Bartender view: re-map the brand accent to the app's MP blue so the whole
-   staff screen reads as "bartender mode". Every var(--accent) usage inside the
-   scope resolves to blue; semantic colors (warn/danger) are untouched. */
+/* Role scopes: re-map --accent to the role color so every component inside
+   automatically picks up the right hue. Semantic colors (warn/danger) are
+   untouched. Applied to a wrapper that covers both the NavBar and screen body. */
 .bartender-scope {
-  --accent: var(--mp);
-  --accent-dim: var(--mp-dim);
-  --accent-on: #fff;
-  --accent-glow: rgba(0, 177, 234, 0.35);
+  --accent:      var(--bartender-accent);
+  --accent-dim:  var(--bartender-accent-dim);
+  --accent-on:   var(--bartender-accent-on);
+  --accent-glow: var(--bartender-accent-glow);
+}
+.admin-scope {
+  --accent:      var(--admin-accent);
+  --accent-dim:  var(--admin-accent-dim);
+  --accent-on:   var(--admin-accent-on);
+  --accent-glow: var(--admin-accent-glow);
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
