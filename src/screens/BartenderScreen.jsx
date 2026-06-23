@@ -452,7 +452,6 @@ export default function BartenderScreen({ scannerPhase, onScannerOpen, onScanner
                       order={order}
                       onAction={onScannerOpen}
                       actionLabel="Escanear QR 📷"
-                      actionColor="var(--mp)"
                       onCancel={() => cancelMutation.mutate(order.id)}
                       cancelLabel="Cancelar (no-show)"
                     />
@@ -559,25 +558,49 @@ function SubHeader({ label, count, hint }) {
   )
 }
 
+// Left-border color signals order urgency: ready (accent/blue) → preparing (warn) → queue (dim)
+function statusBorderColor(status, locked) {
+  if (locked) return 'var(--border)'
+  if (status === 'ready')     return 'var(--accent)'
+  if (status === 'preparing') return 'var(--warn)'
+  return 'var(--border-strong)'
+}
+
 function BartenderCard({ order, onAction, actionLabel, actionColor, onRelease, onCancel, cancelLabel, disabled, locked, disabledAction }) {
   const productMap = useProductMap()
   const displayItems = order.items.map(makeResolver(productMap))
+
+  // Effective action background: use actionColor prop if set, else --accent
+  const effectiveBg   = disabledAction ? 'var(--surface3)' : (actionColor || 'var(--accent)')
+  // Text on warn background needs dark text; everything else uses --accent-on
+  const effectiveText = disabledAction
+    ? 'var(--text-mute)'
+    : actionColor === 'var(--warn)' ? '#2a1800' : 'var(--accent-on)'
+
   return (
     <div style={{
-      margin: '12px 16px',
+      margin: '10px 16px',
       background: 'var(--surface)',
-      border: `1px solid ${locked ? 'var(--border)' : 'var(--border-strong)'}`,
+      border: '1px solid var(--border)',
+      borderLeft: `3px solid ${statusBorderColor(order.status, locked)}`,
       borderRadius: 'var(--radius-sm)',
       overflow: 'hidden',
-      opacity: locked ? 0.65 : 1,
+      opacity: locked ? 0.60 : disabled ? 0.7 : 1,
+      transition: 'opacity 0.2s',
     }}>
+      {/* Card header */}
       <div style={{
-        padding: '12px 14px', borderBottom: '1px solid var(--border)',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '11px 14px', borderBottom: '1px solid var(--border)',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <span style={{ fontWeight: 700, fontSize: 14 }}>Pedido #{order.id}</span>
-          <span style={{ fontSize: 12, color: 'var(--text-mute)' }}>⏱ {order.time}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', minWidth: 0 }}>
+          <span style={{ fontWeight: 700, fontSize: 14 }}>#{order.id}</span>
+          <span style={{
+            fontSize: 11, color: 'var(--text-mute)',
+            background: 'var(--surface3)', borderRadius: 99, padding: '1px 7px',
+          }}>
+            ⏱ {order.time}
+          </span>
           {locked && order.claimedBy && (
             <span style={{
               fontSize: 11, fontWeight: 600,
@@ -588,35 +611,42 @@ function BartenderCard({ order, onAction, actionLabel, actionColor, onRelease, o
             </span>
           )}
         </div>
-        <span style={{ fontSize: 14, fontWeight: 700, flexShrink: 0 }}>{fmt(order.total)}</span>
+        <span style={{ fontSize: 14, fontWeight: 700, flexShrink: 0, color: 'var(--text)' }}>
+          {fmt(order.total)}
+        </span>
       </div>
 
+      {/* Items */}
       <div style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 6 }}>
         {displayItems.map((item, i) => (
-          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 18 }}>{item.emoji}</span>
-            <span style={{ fontSize: 14, flex: 1 }}>{item.name}</span>
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: 18, width: 24, textAlign: 'center', flexShrink: 0 }}>{item.emoji}</span>
+            <span style={{ fontSize: 14, flex: 1, color: 'var(--text)' }}>{item.name}</span>
             <span style={{
               background: 'var(--surface3)', color: 'var(--text-dim)',
-              borderRadius: 99, padding: '2px 8px', fontSize: 12, fontWeight: 700,
+              borderRadius: 99, padding: '2px 9px', fontSize: 12, fontWeight: 700,
             }}>×{item.qty}</span>
           </div>
         ))}
       </div>
 
+      {/* Actions */}
       {!disabled && !locked && (onAction || disabledAction) && (
-        <div style={{ padding: '10px 14px', borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <div style={{
+          padding: '10px 14px 12px', borderTop: '1px solid var(--border)',
+          display: 'flex', flexDirection: 'column', gap: 6,
+        }}>
           <button
             onClick={disabledAction ? undefined : onAction}
             disabled={!!disabledAction}
             style={{
               width: '100%', padding: '10px',
-              background: disabledAction ? 'var(--surface3)' : (actionColor || 'var(--accent)'),
-              color: disabledAction ? 'var(--text-mute)' : (actionColor === 'var(--mp)' ? '#fff' : 'var(--accent-on)'),
+              background: effectiveBg,
+              color: effectiveText,
               borderRadius: 'var(--radius-xs)', fontSize: 13, fontWeight: 700,
               transition: 'opacity 0.15s',
               cursor: disabledAction ? 'not-allowed' : 'pointer',
-              opacity: disabledAction ? 0.6 : 1,
+              opacity: disabledAction ? 0.55 : 1,
             }}
           >
             {actionLabel}
@@ -625,23 +655,25 @@ function BartenderCard({ order, onAction, actionLabel, actionColor, onRelease, o
             <button
               onClick={onRelease}
               style={{
-                width: '100%', padding: '7px',
-                background: 'transparent', color: 'var(--text-mute)',
+                width: '100%', padding: '8px',
+                background: 'transparent', color: 'var(--text-dim)',
                 borderRadius: 'var(--radius-xs)', fontSize: 12, fontWeight: 600,
-                border: '1px solid var(--border)',
+                border: '1px solid var(--border-strong)',
+                transition: 'background 0.12s',
               }}
             >
-              Liberar pedido
+              ↩ Liberar pedido
             </button>
           )}
           {onCancel && (
             <button
               onClick={onCancel}
               style={{
-                width: '100%', padding: '7px',
+                width: '100%', padding: '8px',
                 background: 'transparent', color: 'var(--danger)',
                 borderRadius: 'var(--radius-xs)', fontSize: 12, fontWeight: 600,
                 border: '1px solid var(--danger)',
+                transition: 'background 0.12s',
               }}
             >
               {cancelLabel ?? 'Cancelar pedido'}
@@ -651,8 +683,12 @@ function BartenderCard({ order, onAction, actionLabel, actionColor, onRelease, o
       )}
 
       {disabled && (
-        <div style={{ padding: '10px 14px', borderTop: '1px solid var(--border)', textAlign: 'center' }}>
-          <span style={{ fontSize: 12, color: 'var(--text-mute)' }}>✓ Entregado</span>
+        <div style={{
+          padding: '8px 14px', borderTop: '1px solid var(--border)',
+          display: 'flex', alignItems: 'center', gap: 6,
+        }}>
+          <span style={{ fontSize: 13 }}>✓</span>
+          <span style={{ fontSize: 12, color: 'var(--text-mute)' }}>Entregado</span>
         </div>
       )}
     </div>

@@ -40,27 +40,36 @@
   color: var(--accent);
 }
 
-/* Bartender header: solid blue bar so staff instantly know which view they're in.
-   Elements sit in near-black for strong contrast against the blue. */
+/* Staff nav bar: dark surface with a 2-px role-accent line at the bottom.
+   Inherits --accent from the enclosing .bartender-scope or .admin-scope,
+   so both roles share this one class. */
 .nav-bar--bartender {
-  background: var(--mp);
-  border-bottom: none;
-  color: #04121a;
+  background: var(--surface);
+  border-bottom: 2px solid var(--accent);
+  box-shadow: 0 2px 12px -4px var(--accent-glow);
 }
-.nav-bar--bartender h1 { color: #04121a; }
-.nav-bar--bartender .back-btn { color: #04121a; }
-.nav-bar--bartender .theme-btn { color: #04121a; }
-.nav-bar--bartender .theme-btn:hover { color: #000; background: rgba(0,0,0,0.14); }
+.nav-bar--bartender h1       { color: var(--text); }
+.nav-bar--bartender .back-btn { color: var(--accent); }
+.nav-bar--bartender .theme-btn { color: var(--text-mute); }
+.nav-bar--bartender .theme-btn:hover { color: var(--text); background: var(--surface3); }
+
+/* Logout / role pill: subtle filled chip that fills to solid on hover */
 .bartender-logout {
-  font-size: 12px; font-weight: 700;
-  color: #04121a;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent);
   padding: 5px 12px;
   border-radius: 999px;
-  border: 1px solid rgba(0,0,0,0.45);
-  background: transparent;
-  transition: background 0.15s;
+  border: 1px solid var(--accent-dim);
+  background: var(--accent-dim);
+  letter-spacing: 0.01em;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
-.bartender-logout:hover { background: rgba(0,0,0,0.14); }
+.bartender-logout:hover {
+  background: var(--accent);
+  color: var(--accent-on);
+  border-color: var(--accent);
+}
 
 /* Screen body */
 .screen-body {

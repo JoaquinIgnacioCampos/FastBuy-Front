@@ -416,6 +416,15 @@ export default function App() {
   const isAdminView     = screen === 'admin'
   const isStaffView     = isBartenderView || isAdminView
 
+  // Scope class covers the role-specific color theme. Wraps NavBar + screen body
+  // so --accent resolves to the role color everywhere inside.
+  const scopeClass =
+    ['login', 'bartender-bar', 'bartender', 'bartender-scanner', 'payment-setup'].includes(screen)
+      ? 'bartender-scope'
+      : ['admin-login', 'admin'].includes(screen)
+        ? 'admin-scope'
+        : ''
+
   const navTitle = isBartenderView
     ? (bartenderBar?.label ?? 'Barra')
     : isAdminView
@@ -457,39 +466,43 @@ export default function App() {
     <div className="phone">
       <StatusBar status={healthStatus} />
 
-      {showNavBar && (
-        <NavBar
-          title={navTitle}
-          onBack={onBack}
-          theme={theme}
-          onToggleTheme={toggleTheme}
-          variant={isStaffView ? 'bartender' : undefined}
-          right={isStaffView ? (
-            <button
-              className="bartender-logout"
-              onClick={isBartenderView ? handleLogout : handleAdminLogout}
-            >
-              Cerrar sesión
-            </button>
-          ) : null}
-        />
-      )}
+      {/* Role scope wraps both NavBar and screen body so --accent resolves to
+          the correct role color everywhere (NavBar glows, buttons, brand mark). */}
+      <div className={scopeClass} style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
-      <div
-        key={screen}
-        className={`screen-fade${isStaffView ? ' bartender-scope' : ''}`}
-        style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}
-      >
-        {showThemeBtn && (
-          <button
-            className="theme-btn"
-            onClick={toggleTheme}
-            aria-label="Cambiar tema"
-            style={{ position: 'absolute', top: 14, right: 14, zIndex: 20, width: 32, height: 32 }}
-          >
-            {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
-          </button>
+        {showNavBar && (
+          <NavBar
+            title={navTitle}
+            onBack={onBack}
+            theme={theme}
+            onToggleTheme={toggleTheme}
+            variant={isStaffView ? 'bartender' : undefined}
+            right={isStaffView ? (
+              <button
+                className="bartender-logout"
+                onClick={isBartenderView ? handleLogout : handleAdminLogout}
+              >
+                Cerrar sesión
+              </button>
+            ) : null}
+          />
         )}
+
+        <div
+          key={screen}
+          className="screen-fade"
+          style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}
+        >
+          {showThemeBtn && (
+            <button
+              className="theme-btn"
+              onClick={toggleTheme}
+              aria-label="Cambiar tema"
+              style={{ position: 'absolute', top: 14, right: 14, zIndex: 20, width: 32, height: 32 }}
+            >
+              {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
+            </button>
+          )}
 
         {screen === 'role-picker' && (
           <RolePickerScreen onRole={handleRolePick} />
@@ -619,7 +632,8 @@ export default function App() {
             backLabel="← Cambiar rol"
           />
         )}
-      </div>
+        </div>{/* screen-fade */}
+      </div>{/* scope wrapper */}
     </div>
   )
 }
