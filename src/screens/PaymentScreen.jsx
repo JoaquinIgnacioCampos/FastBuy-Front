@@ -3,7 +3,7 @@ import { fmt } from '../lib/format.js'
 import { useProductMap, resolveProduct } from '../hooks/useMenu.js'
 
 const PAYMENT_METHODS = [
-  { id: 'balance', label: 'Dinero en cuenta', detail: 'Saldo disponible $18.450', icon: '💰', selected: true },
+  { id: 'balance', label: 'Dinero en cuenta', detail: 'Pagás con tu cuenta de Mercado Pago', icon: '💰', selected: true },
 ]
 
 export default function PaymentScreen({ cart, phase, event, onSuccess, onRetry, onBack }) {

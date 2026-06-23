@@ -1,5 +1,4 @@
-import { useState, useEffect } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useState, useEffect, useRef } from 'react'
 import './App.css'
 
 import LoginScreen        from './screens/LoginScreen'
@@ -16,88 +15,16 @@ import { useProductMap, resolveProduct } from './hooks/useMenu.js'
 import { useOrderStatus }             from './hooks/useOrderStatus.js'
 import { useBackendHealth }           from './hooks/useBackendHealth.js'
 import { createOrder, createPaymentPreference } from './services/api'
+import { useScreen } from './hooks/useScreen.js'
+import { loadPersisted, savePersisted, clearPersisted,
+         PERSIST_SCREEN, PERSIST_CART, PERSIST_EVENT, PERSIST_ORDER, PERSIST_BAR } from './lib/persist.js'
+import { TITLES, BACK_TARGETS, barIdFromPath } from './lib/screens.js'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const PENDING_KEY          = 'fb_pending_payment'
 const BARTENDER_SESSION_KEY = 'fb_bartender_session'
 const BARTENDER_BAR_KEY     = 'fb_bartender_bar'
-const SS_SCREEN = 'fb_screen'
-const SS_CART   = 'fb_cart'
-const SS_EVENT  = 'fb_event'
-const SS_ORDER  = 'fb_order'
-const SS_BAR    = 'fb_bar'
-
-const SCREEN_TO_PATH = {
-  login:               '/',
-  welcome:             '/events',
-  menu:                '/menu',
-  order:               '/order',
-  payment:             '/payment',
-  paying:              '/payment',
-  rejected:            '/payment',
-  queue:               '/queue',
-  preparing:           '/queue',
-  ready:               '/queue',
-  offline:             '/queue',
-  qr:                  '/pickup',
-  confirmed:           '/pickup',
-  bartender:           '/staff',
-  'bartender-scanner': '/staff',
-  'payment-setup':     '/staff/setup',
-}
-
-const PATH_TO_SCREEN = {
-  '/':            'login',
-  '/events':      'welcome',
-  '/menu':        'menu',
-  '/order':       'order',
-  '/payment':     'payment',
-  '/queue':       'queue',
-  '/pickup':      'qr',
-  '/staff/setup': 'payment-setup',
-  '/staff':       'bartender',
-}
-
-function pathToScreen(pathname) {
-  if (pathname.startsWith('/staff/setup')) return 'payment-setup'
-  if (pathname.startsWith('/staff/'))      return 'bartender'
-  return PATH_TO_SCREEN[pathname] ?? null
-}
-
-function barIdFromPath(pathname) {
-  const m = pathname.match(/^\/staff\/([^/]+)$/)
-  return m ? m[1] : null
-}
-
-const TITLES = {
-  menu:                'Menú',
-  order:               'Tu pedido',
-  payment:             'Mercado Pago',
-  paying:              'Procesando pago',
-  rejected:            'Pago rechazado',
-  queue:               'Cola virtual',
-  preparing:           'Cola virtual',
-  ready:               'Cola virtual',
-  offline:             'Sin conexión',
-  qr:                  'Retirar pedido',
-  confirmed:           'Pedido retirado',
-  bartender:           '—',
-  'bartender-scanner': '—',
-  'payment-setup':     'Configurar pagos',
-}
-
-const BACK_TARGETS = {
-  order:    'menu',
-  payment:  'order',
-  rejected: 'order',
-}
-
-// ── SessionStorage helpers ────────────────────────────────────────────────────
-
-function loadSS(key)        { try { return JSON.parse(sessionStorage.getItem(key)) } catch { return null } }
-function saveSS(key, val)   { try { sessionStorage.setItem(key, JSON.stringify(val)) } catch {} }
-function clearSS(...keys)   { keys.forEach(k => { try { sessionStorage.removeItem(k) } catch {} }) }
 
 // ── localStorage helpers ──────────────────────────────────────────────────────
 
@@ -159,9 +86,9 @@ function StatusBar({ status }) {
   )
 }
 
-function NavBar({ title, onBack, right, theme, onToggleTheme }) {
+function NavBar({ title, onBack, right, theme, onToggleTheme, variant }) {
   return (
-    <div className="nav-bar">
+    <div className={`nav-bar${variant === 'bartender' ? ' nav-bar--bartender' : ''}`}>
       {onBack ? (
         <button className="back-btn" onClick={onBack}>‹</button>
       ) : (
@@ -181,43 +108,31 @@ function NavBar({ title, onBack, right, theme, onToggleTheme }) {
 // ── App ───────────────────────────────────────────────────────────────────────
 
 export default function App() {
-  const navigate = useNavigate()
-  const location = useLocation()
-
   const initialReturn = useState(() => readReturnFromPayment())[0]
 
-  const [screen, setScreenRaw] = useState(() => {
-    if (initialReturn?.status === 'approved' && initialReturn.pending) return 'queue'
-    if (initialReturn?.status === 'rejected' || initialReturn?.status === 'failure') return 'rejected'
-    return loadSS(SS_SCREEN) ?? pathToScreen(location.pathname) ?? 'login'
+  // Ref lets useScreen.go() resolve the current bartender bar id for /staff/:barId
+  // without a render cycle (bartenderBar is defined just below).
+  const bartenderBarRef = useRef(null)
+  const { screen, go, pathname } = useScreen({
+    initialReturn,
+    resolveBarId: () => bartenderBarRef.current?.id,
   })
 
-  function go(s, opts = {}) {
-    setScreenRaw(s)
-    saveSS(SS_SCREEN, s)
-    const barId = opts.barId ?? bartenderBar?.id
-    const path =
-      (s === 'bartender' || s === 'bartender-scanner') && barId
-        ? `/staff/${barId}`
-        : SCREEN_TO_PATH[s] ?? '/'
-    navigate(path)
-  }
-
-  const [cart, setCart]               = useState(() => loadSS(SS_CART) ?? {})
+  const [cart, setCart]               = useState(() => loadPersisted(PERSIST_CART) ?? {})
   const [theme, setTheme]             = useState('dark')
-  const [assignedBar, setAssignedBar] = useState(() => loadSS(SS_BAR))
+  const [assignedBar, setAssignedBar] = useState(() => loadPersisted(PERSIST_BAR))
   const [bartenderBar, setBartenderBar] = useState(() => {
     try {
       // Prefer the directly-persisted bartenderBar object (covers both login and dev picker)
       const bar = JSON.parse(localStorage.getItem(BARTENDER_BAR_KEY) || 'null')
       if (bar) {
-        const urlBarId = barIdFromPath(location.pathname)
+        const urlBarId = barIdFromPath(pathname)
         if (!urlBarId || urlBarId === bar.id) return bar
       }
       // Fall back to session key (written by handleBartenderLogin)
       const s = JSON.parse(localStorage.getItem(BARTENDER_SESSION_KEY) || 'null')
       if (s) {
-        const urlBarId = barIdFromPath(location.pathname)
+        const urlBarId = barIdFromPath(pathname)
         if (!urlBarId || urlBarId === s.barId) {
           return { id: s.barId, label: s.barLabel, location: '', username: s.username, eventId: s.eventId }
         }
@@ -225,19 +140,20 @@ export default function App() {
     } catch {}
     return null
   })
-  const [activeOrder, setActiveOrder] = useState(() => loadSS(SS_ORDER))
-  const [selectedEvent, setSelectedEvent] = useState(() => loadSS(SS_EVENT))
+  const [activeOrder, setActiveOrder] = useState(() => loadPersisted(PERSIST_ORDER))
+  const [selectedEvent, setSelectedEvent] = useState(() => loadPersisted(PERSIST_EVENT))
 
   const { data: bars = [] } = useBars()
   const productMap = useProductMap()
   const healthStatus = useBackendHealth()
 
   // Persist state to sessionStorage so refresh restores the current view
-  useEffect(() => { saveSS(SS_CART, cart) }, [cart])
-  useEffect(() => { selectedEvent ? saveSS(SS_EVENT, selectedEvent) : clearSS(SS_EVENT) }, [selectedEvent])
-  useEffect(() => { activeOrder   ? saveSS(SS_ORDER, activeOrder)   : clearSS(SS_ORDER) }, [activeOrder])
-  useEffect(() => { assignedBar   ? saveSS(SS_BAR, assignedBar)     : clearSS(SS_BAR) }, [assignedBar])
+  useEffect(() => { savePersisted(PERSIST_CART, cart) }, [cart])
+  useEffect(() => { selectedEvent ? savePersisted(PERSIST_EVENT, selectedEvent) : clearPersisted(PERSIST_EVENT) }, [selectedEvent])
+  useEffect(() => { activeOrder   ? savePersisted(PERSIST_ORDER, activeOrder)   : clearPersisted(PERSIST_ORDER) }, [activeOrder])
+  useEffect(() => { assignedBar   ? savePersisted(PERSIST_BAR, assignedBar)     : clearPersisted(PERSIST_BAR) }, [assignedBar])
   useEffect(() => {
+    bartenderBarRef.current = bartenderBar
     bartenderBar
       ? localStorage.setItem(BARTENDER_BAR_KEY, JSON.stringify(bartenderBar))
       : localStorage.removeItem(BARTENDER_BAR_KEY)
@@ -262,7 +178,7 @@ export default function App() {
     const { items, total, event } = pending
     createOrder(items, undefined, total, event?.id)
       .then(order => {
-        const bar = { id: order.bar, label: order.bar, location: '' }
+        const bar = { id: order.bar, label: order.barLabel ?? order.bar, location: '' }
         setActiveOrder(order)
         setAssignedBar(bar)
       })
@@ -282,21 +198,28 @@ export default function App() {
     }
   }
 
-  const pollEnabled = !!activeOrder && (screen === 'queue' || screen === 'preparing' || screen === 'qr')
-  const { data: liveOrder } = useOrderStatus(activeOrder?.id, activeOrder?.bar, { enabled: pollEnabled })
+  const pollEnabled = !!activeOrder && (screen === 'queue' || screen === 'preparing' || screen === 'ready' || screen === 'qr')
+  const { data: liveOrder } = useOrderStatus(activeOrder?.id, { enabled: pollEnabled })
 
   useEffect(() => {
     if (!pollEnabled || liveOrder === undefined) return
     if (liveOrder === null) {
-      if (screen === 'qr') go('confirmed')
+      // Order no longer exists: a vanished pickup reads as delivered, otherwise cancelled.
+      go(screen === 'qr' ? 'confirmed' : 'order-cancelled')
       return
     }
     const status = liveOrder.status
-    if (status === 'ready' && (screen === 'queue' || screen === 'preparing')) {
-      notifyOrderReady()
-      go('ready')
-    } else if (status === 'preparing' && screen === 'queue') {
-      go('preparing')
+    // Terminal states first
+    if (status === 'delivered') { go('confirmed'); return }
+    if (status === 'cancelled') { go('order-cancelled'); return }
+    // Keep the customer's screen in sync with the live status — forward AND backward,
+    // so a bartender freeing a PREPARING order sends the customer back to 'queue'.
+    if (status === 'ready') {
+      if (screen !== 'ready' && screen !== 'qr') { notifyOrderReady(); go('ready') }
+    } else if (status === 'preparing') {
+      if (screen !== 'preparing') go('preparing')
+    } else if (status === 'queue') {
+      if (screen !== 'queue') go('queue')
     }
   }, [liveOrder, screen, pollEnabled]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -321,7 +244,7 @@ export default function App() {
           // Simulated path: create the order now (no real payment needed)
           const order = await createOrder(items, undefined, total, selectedEvent?.id)
           if (cancelled) return
-          const bar = bars.find(b => b.id === order.bar) ?? { id: order.bar, label: order.bar, location: '' }
+          const bar = bars.find(b => b.id === order.bar) ?? { id: order.bar, label: order.barLabel ?? order.bar, location: '' }
           clearPending()
           setAssignedBar(bar)
           setActiveOrder(order)
@@ -348,10 +271,10 @@ export default function App() {
     if (hasItems) {
       if (!window.confirm('¿Salir del evento? Tu carrito se vaciará.')) return
       setCart({})
-      clearSS(SS_CART)
+      clearPersisted(PERSIST_CART)
     }
     setSelectedEvent(null)
-    clearSS(SS_EVENT)
+    clearPersisted(PERSIST_EVENT)
     go('welcome')
   }
 
@@ -359,7 +282,7 @@ export default function App() {
     setCart({})
     setAssignedBar(null)
     setActiveOrder(null)
-    clearSS(SS_CART, SS_ORDER, SS_BAR)
+    clearPersisted(PERSIST_CART, PERSIST_ORDER, PERSIST_BAR)
     go('menu')
   }
 
@@ -374,11 +297,12 @@ export default function App() {
     clearBartenderSession()
     localStorage.removeItem(BARTENDER_BAR_KEY)
     setBartenderBar(null)
-    clearSS(SS_SCREEN, SS_CART, SS_EVENT, SS_ORDER, SS_BAR)
+    clearPersisted(PERSIST_SCREEN, PERSIST_CART, PERSIST_EVENT, PERSIST_ORDER, PERSIST_BAR)
     go('login')
   }
 
-  const navTitle   = screen === 'bartender' || screen === 'bartender-scanner' ? (bartenderBar?.label ?? 'Barra') : title
+  const isBartenderView = screen === 'bartender' || screen === 'bartender-scanner'
+  const navTitle   = isBartenderView ? (bartenderBar?.label ?? 'Barra') : title
   const showNavBar = !!navTitle && screen !== 'login' && screen !== 'welcome'
   const onBack     =
     screen === 'menu'          ? handleBackFromMenu :
@@ -396,13 +320,16 @@ export default function App() {
           onBack={onBack}
           theme={theme}
           onToggleTheme={toggleTheme}
-          right={null}
+          variant={isBartenderView ? 'bartender' : undefined}
+          right={isBartenderView ? (
+            <button className="bartender-logout" onClick={handleLogout}>Cerrar sesión</button>
+          ) : null}
         />
       )}
 
       <div
         key={screen}
-        className="screen-fade"
+        className={`screen-fade${(screen === 'bartender' || screen === 'bartender-scanner') ? ' bartender-scope' : ''}`}
         style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}
       >
         {(screen === 'login' || screen === 'welcome') && (
@@ -461,6 +388,7 @@ export default function App() {
             cart={cart}
             bar={assignedBar}
             activeOrder={activeOrder}
+            queuePosition={liveOrder?.queuePosition}
             offline={screen === 'offline'}
             onReady={() => go('qr')}
             onOfflineRetry={() => go('queue')}
@@ -478,10 +406,27 @@ export default function App() {
           />
         )}
 
+        {screen === 'order-cancelled' && (
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 20, padding: 32 }}>
+            <div style={{
+              width: 72, height: 72, borderRadius: '50%',
+              background: 'var(--warn-dim)', border: '2px solid var(--warn)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32,
+            }}>🚫</div>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>Pedido cancelado</div>
+              <div style={{ fontSize: 14, color: 'var(--text-dim)', lineHeight: 1.5 }}>
+                La barra canceló tu pedido. Si creés que fue un error, acercate a la barra.
+              </div>
+            </div>
+            <button className="btn-primary" onClick={resetOrder} style={{ width: '100%' }}>
+              Volver al menú
+            </button>
+          </div>
+        )}
+
         {(screen === 'bartender' || screen === 'bartender-scanner') && (
           <BartenderScreen
-            onBack={handleLogout}
-            onPaymentSetup={bartenderBar?.eventId ? () => go('payment-setup') : null}
             scannerPhase={screen === 'bartender-scanner'}
             onScannerOpen={() => go('bartender-scanner', { barId: bartenderBar?.id })}
             onScannerClose={() => go('bartender', { barId: bartenderBar?.id })}

@@ -1,3 +1,7 @@
+# Local dev launcher. Runs the backend + Vite, then an ngrok tunnel so Mercado
+# Pago has a public https URL to redirect back to (auto_return needs a public
+# origin — it cannot return to localhost). Other devices / the hosted demo are
+# separate; this tunnel is just for local MP testing.
 $FRONT  = $PSScriptRoot
 $BACK   = Resolve-Path (Join-Path $FRONT '..\FastBuy-Back')
 $DOMAIN = 'crepe-phonics-slogan.ngrok-free.dev'
@@ -36,6 +40,7 @@ Write-Host '  FastBuy is running' -ForegroundColor Green
 Write-Host '==========================================================' -ForegroundColor Green
 Write-Host "  URL:  https://$DOMAIN"
 Write-Host '  API:  /api/*  ->  http://localhost:8080/*'
+Write-Host '  (ngrok URL gives MP a public return URL for local payments)'
 Write-Host ''
 Write-Host '  Press ENTER to stop all services.' -ForegroundColor Yellow
 Write-Host '==========================================================' -ForegroundColor Green

@@ -8,6 +8,16 @@ async function req(url, opts) {
   return r
 }
 
+// Bearer token from the stored bartender session, sent on gated write endpoints.
+function bartenderAuthHeaders() {
+  try {
+    const token = JSON.parse(localStorage.getItem('fb_bartender_session'))?.token
+    return token ? { Authorization: `Bearer ${token}` } : {}
+  } catch {
+    return {}
+  }
+}
+
 // ── Orders ───────────────────────────────────────────────────────────────────
 
 export async function getOrders(barId) {
@@ -23,20 +33,25 @@ export async function getDeliveredOrders(barId) {
 export async function advanceOrder(id, bartenderId) {
   const r = await req(`${BASE}/orders/${id}/advance`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...bartenderAuthHeaders() },
     body: JSON.stringify({ bartenderId: bartenderId ?? null }),
   })
   return r.json()
 }
 
 export async function releaseOrder(id) {
-  const r = await req(`${BASE}/orders/${id}/release`, { method: 'POST' })
+  const r = await req(`${BASE}/orders/${id}/release`, { method: 'POST', headers: bartenderAuthHeaders() })
   return r.json()
 }
 
 
 export async function markDelivered(id) {
-  const r = await req(`${BASE}/orders/${id}/deliver`, { method: 'POST' })
+  const r = await req(`${BASE}/orders/${id}/deliver`, { method: 'POST', headers: bartenderAuthHeaders() })
+  return r.json()
+}
+
+export async function cancelOrder(id) {
+  const r = await req(`${BASE}/orders/${id}/cancel`, { method: 'POST', headers: bartenderAuthHeaders() })
   return r.json()
 }
 
@@ -49,10 +64,13 @@ export async function createOrder(items, bar, total, eventId) {
   return r.json()
 }
 
-export async function getOrderStatus(orderId, barId) {
-  const r = await req(`${BASE}/orders?bar=${barId}`)
-  const orders = await r.json()
-  return orders.find(o => o.id === orderId) ?? null
+export async function getOrderStatus(orderId) {
+  // Look up the single order in any state (queue/preparing/ready/delivered/cancelled).
+  // 404 means it no longer exists at all.
+  const r = await fetch(`${BASE}/orders/${orderId}`)
+  if (r.status === 404) return null
+  if (!r.ok) throw new Error(`${r.status}`)
+  return r.json()
 }
 
 // ── Catalog ──────────────────────────────────────────────────────────────────

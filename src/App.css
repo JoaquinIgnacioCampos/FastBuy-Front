@@ -40,6 +40,28 @@
   color: var(--accent);
 }
 
+/* Bartender header: solid blue bar so staff instantly know which view they're in.
+   Elements sit in near-black for strong contrast against the blue. */
+.nav-bar--bartender {
+  background: var(--mp);
+  border-bottom: none;
+  color: #04121a;
+}
+.nav-bar--bartender h1 { color: #04121a; }
+.nav-bar--bartender .back-btn { color: #04121a; }
+.nav-bar--bartender .theme-btn { color: #04121a; }
+.nav-bar--bartender .theme-btn:hover { color: #000; background: rgba(0,0,0,0.14); }
+.bartender-logout {
+  font-size: 12px; font-weight: 700;
+  color: #04121a;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(0,0,0,0.45);
+  background: transparent;
+  transition: background 0.15s;
+}
+.bartender-logout:hover { background: rgba(0,0,0,0.14); }
+
 /* Screen body */
 .screen-body {
   flex: 1;
@@ -265,15 +287,13 @@
 }
 .status-step {
   display: flex;
-  align-items: flex-start;
+  align-items: stretch;
   gap: 14px;
-  padding: 16px 0;
 }
 .step-indicator {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0;
   flex-shrink: 0;
 }
 .step-dot {
@@ -289,12 +309,13 @@
 .step-dot.done   { background: var(--accent); color: var(--accent-on); border-color: var(--accent); }
 .step-dot.active { background: var(--surface3); color: var(--accent); border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-dim); }
 .step-line {
-  width: 2px; height: 32px;
+  width: 2px;
+  flex: 1;
+  min-height: 18px;
   background: var(--border-strong);
-  margin: 2px 0;
 }
 .step-line.done { background: var(--accent); }
-.step-content { padding-top: 2px; }
+.step-content { padding: 1px 0 26px; }
 .step-title { font-size: 15px; font-weight: 600; }
 .step-title.active { color: var(--accent); }
 .step-title.done   { color: var(--text-dim); }
