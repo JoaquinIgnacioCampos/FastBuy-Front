@@ -491,6 +491,7 @@ export default function App() {
             cart={cart}
             bar={assignedBar}
             activeOrder={activeOrder}
+            queuePosition={liveOrder?.queuePosition}
             offline={screen === 'offline'}
             onReady={() => go('qr')}
             onOfflineRetry={() => go('queue')}
