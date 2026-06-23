@@ -125,6 +125,25 @@ export async function loginBartender(username, password) {
   return r.json()
 }
 
+export async function loginAdmin(username, password) {
+  const r = await req(`${BASE}/auth/admin/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password }),
+  })
+  return r.json()
+}
+
+// Bearer token from the stored admin session, sent on gated payment-account writes.
+function adminAuthHeaders() {
+  try {
+    const token = JSON.parse(localStorage.getItem('fb_admin_session'))?.token
+    return token ? { Authorization: `Bearer ${token}` } : {}
+  } catch {
+    return {}
+  }
+}
+
 // ── Payment accounts ─────────────────────────────────────────────────────────
 
 export async function getPaymentAccount(eventId) {
@@ -135,12 +154,15 @@ export async function getPaymentAccount(eventId) {
 export async function linkPaymentAccount(eventId, accessToken) {
   const r = await req(`${BASE}/events/${eventId}/payment-account`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...adminAuthHeaders() },
     body: JSON.stringify({ accessToken }),
   })
   return r.json()
 }
 
 export async function unlinkPaymentAccount(eventId) {
-  await req(`${BASE}/events/${eventId}/payment-account`, { method: 'DELETE' })
+  await req(`${BASE}/events/${eventId}/payment-account`, {
+    method: 'DELETE',
+    headers: adminAuthHeaders(),
+  })
 }

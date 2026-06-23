@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { usePaymentAccount, useLinkPaymentAccount, useUnlinkPaymentAccount } from '../hooks/usePaymentAccount.js'
 import { Loading, ErrorPanel } from '../components/QueryStates.jsx'
 
-export default function PaymentSetupScreen({ eventId, eventName, onBack }) {
+export default function PaymentSetupScreen({ eventId, eventName, onBack, backLabel = '← Volver al panel' }) {
   const [token, setToken] = useState('')
   const { data: account, isLoading, isError, refetch } = usePaymentAccount(eventId)
   const linkMutation   = useLinkPaymentAccount(eventId)
@@ -47,7 +47,7 @@ export default function PaymentSetupScreen({ eventId, eventName, onBack }) {
 
       <div style={{ padding: '12px 24px 28px', borderTop: '1px solid var(--border)' }}>
         <button className="btn-secondary" onClick={onBack}>
-          ← Volver al panel
+          {backLabel}
         </button>
       </div>
     </div>
