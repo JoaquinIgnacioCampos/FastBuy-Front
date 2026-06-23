@@ -103,14 +103,24 @@ function LinkForm({ token, onTokenChange, onLink, loading, error }) {
         background: 'var(--surface2)', border: '1px solid var(--border)',
         borderRadius: 'var(--radius-sm)', padding: '14px 16px',
         fontSize: 13, color: 'var(--text-dim)', lineHeight: 1.6,
+        display: 'flex', flexDirection: 'column', gap: 12,
       }}>
-        <div style={{ fontWeight: 700, marginBottom: 6 }}>Cómo obtener el token:</div>
-        <ol style={{ paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <li>Entrá a <span style={{ fontFamily: 'monospace', color: 'var(--accent)' }}>mercadopago.com.ar/developers</span></li>
-          <li>Creá una aplicación → Checkout Pro</li>
-          <li>Copiá el <strong>Production access token</strong></li>
-          <li>Pegalo acá abajo</li>
-        </ol>
+        <div>
+          <div style={{ fontWeight: 700, marginBottom: 6, color: 'var(--text)' }}>Cómo obtener tu token:</div>
+          <ol style={{ paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 5 }}>
+            <li>Iniciá sesión en <span style={{ fontFamily: 'monospace', color: 'var(--accent)' }}>mercadopago.com.ar/developers</span></li>
+            <li>Entrá a <strong>Tus aplicaciones</strong> y seleccioná tu app (o creá una si es la primera vez)</li>
+            <li>Abrí la sección <strong>Credenciales de producción</strong></li>
+            <li>Copiá el <strong>Access token</strong> — empieza con <span style={{ fontFamily: 'monospace' }}>APP_USR-</span></li>
+            <li>Pegalo acá abajo</li>
+          </ol>
+        </div>
+        <div style={{
+          borderTop: '1px solid var(--border)', paddingTop: 10,
+          fontSize: 12, color: 'var(--text-mute)',
+        }}>
+          ⚠️ Necesitás una <strong>cuenta vendedor</strong> de Mercado Pago (no alcanza con una cuenta personal). Si aún no la tenés, creála en mercadopago.com.ar antes de continuar.
+        </div>
       </div>
 
       <div>
