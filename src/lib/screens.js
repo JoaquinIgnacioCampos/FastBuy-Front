@@ -74,6 +74,7 @@ export const BACK_TARGETS = {
 export const TRANSIENT_SCREENS = new Set(['payment', 'paying', 'rejected'])
 
 export function pathToScreen(pathname) {
+  if (pathname.startsWith('/e/'))          return 'welcome' // QR deep link → event auto-select
   if (pathname.startsWith('/staff/setup')) return 'payment-setup'
   if (pathname.startsWith('/staff/bars'))  return 'bartender-bar'
   if (pathname.startsWith('/staff/'))      return 'bartender'
@@ -85,4 +86,10 @@ export function pathToScreen(pathname) {
 export function barIdFromPath(pathname) {
   const m = pathname.match(/^\/staff\/([^/]+)$/)
   return m ? m[1] : null
+}
+
+// Returns the eventId embedded in a /e/:eventId QR deep link, or null.
+export function eventIdFromPath(pathname) {
+  const m = pathname.match(/^\/e\/([^/]+)$/)
+  return m ? decodeURIComponent(m[1]) : null
 }
