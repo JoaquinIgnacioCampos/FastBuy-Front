@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import './App.css'
 
 import LoginScreen        from './screens/LoginScreen'
+import RolePickerScreen   from './screens/RolePickerScreen'
 import WelcomeScreen      from './screens/WelcomeScreen'
 import MenuScreen         from './screens/MenuScreen'
 import OrderScreen        from './screens/OrderScreen'
@@ -14,23 +15,22 @@ import { useBars }                    from './hooks/useBars.js'
 import { useProductMap, resolveProduct } from './hooks/useMenu.js'
 import { useOrderStatus }             from './hooks/useOrderStatus.js'
 import { useBackendHealth }           from './hooks/useBackendHealth.js'
-import { createOrder, createPaymentPreference, loginBartender } from './services/api'
+import { createOrder, createPaymentPreference, loginBartender, loginAdmin } from './services/api'
 import { useScreen } from './hooks/useScreen.js'
 import { loadPersisted, savePersisted, clearPersisted,
          PERSIST_SCREEN, PERSIST_CART, PERSIST_EVENT, PERSIST_ORDER, PERSIST_BAR } from './lib/persist.js'
-import { TITLES, BACK_TARGETS, barIdFromPath } from './lib/screens.js'
+import { TITLES, BACK_TARGETS, barIdFromPath, TRANSIENT_SCREENS } from './lib/screens.js'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const PENDING_KEY          = 'fb_pending_payment'
+const PENDING_KEY           = 'fb_pending_payment'
 const BARTENDER_SESSION_KEY = 'fb_bartender_session'
 const BARTENDER_BAR_KEY     = 'fb_bartender_bar'
+const ADMIN_SESSION_KEY     = 'fb_admin_session'
+const ROLE_KEY              = 'fb_role'
 
-// DEV ONLY (develop branch — the picker/shortcut is stripped on production):
-// the "Vista bartender" picker auto-logs-in with the seed credentials so the
-// dev bar gets a real server-issued token and the auth-gated writes
-// (advance/deliver/cancel/release) work without typing credentials.
-// Keyed by bar id, which equals the seeded bartender username.
+// DEV ONLY (develop branch — stripped on production):
+// the "Vista bartender" picker auto-logs-in with seed credentials.
 const DEV_BARTENDER_PASSWORDS = {
   'eclipse-north':  'norte123',
   'eclipse-center': 'centro123',
@@ -38,7 +38,31 @@ const DEV_BARTENDER_PASSWORDS = {
   'cumbia-main':    'principal123',
   'cumbia-vip':     'vip123',
 }
+
+// DEV ONLY: admin dev shortcut events (seeded via DataInitializer).
+const DEV_ADMIN_CREDS = {
+  'e1': { username: 'admin-eclipse', password: 'eclipse2025' },
+  'e2': { username: 'admin-cumbia',  password: 'cumbia2025'  },
+  'e3': { username: 'admin-cosquin', password: 'cosquin2025' },
+  'e5': { username: 'admin-lolla',   password: 'lolla2025'   },
+}
+const DEV_ADMIN_SHORTCUTS = [
+  { id: 'e1', label: '🌕 Eclipse (dev)'  },
+  { id: 'e2', label: '🎺 Cumbia (dev)'   },
+  { id: 'e3', label: '🎸 Cosquín (dev)'  },
+]
+
 // ── localStorage helpers ──────────────────────────────────────────────────────
+
+function saveRole(role) {
+  try { localStorage.setItem(ROLE_KEY, role) } catch {}
+}
+function clearRole() {
+  try { localStorage.removeItem(ROLE_KEY) } catch {}
+}
+function loadRole() {
+  try { return localStorage.getItem(ROLE_KEY) } catch { return null }
+}
 
 function savePending(payload) {
   try { localStorage.setItem(PENDING_KEY, JSON.stringify(payload)) } catch {}
@@ -53,7 +77,19 @@ function saveBartenderSession(session) {
   try { localStorage.setItem(BARTENDER_SESSION_KEY, JSON.stringify(session)) } catch {}
 }
 function clearBartenderSession() {
-  try { localStorage.removeItem(BARTENDER_SESSION_KEY) } catch {}
+  try {
+    localStorage.removeItem(BARTENDER_SESSION_KEY)
+    localStorage.removeItem(BARTENDER_BAR_KEY)
+  } catch {}
+}
+function saveAdminSession(session) {
+  try { localStorage.setItem(ADMIN_SESSION_KEY, JSON.stringify(session)) } catch {}
+}
+function clearAdminSession() {
+  try { localStorage.removeItem(ADMIN_SESSION_KEY) } catch {}
+}
+function parseLocalStorage(key) {
+  try { return JSON.parse(localStorage.getItem(key) || 'null') } catch { return null }
 }
 
 function readReturnFromPayment() {
@@ -64,6 +100,34 @@ function readReturnFromPayment() {
   if (!status || !externalRef) return null
   const pending = loadPending()
   return { status, externalRef, pending }
+}
+
+// Determines the initial screen based on persisted role + sessions.
+// Called once at boot (inside useScreen's lazy useState initializer).
+function computeInitialScreen() {
+  const role = loadRole()
+  if (!role) return 'role-picker'
+
+  if (role === 'user') {
+    const saved = loadPersisted(PERSIST_SCREEN)
+    if (saved && !TRANSIENT_SCREENS.has(saved)) return saved
+    return 'welcome'
+  }
+
+  if (role === 'bartender') {
+    const saved = loadPersisted(PERSIST_SCREEN)
+    const bartenderScreens = new Set(['bartender', 'bartender-scanner', 'bartender-bar', 'login'])
+    if (saved && bartenderScreens.has(saved)) return saved
+    const s = parseLocalStorage(BARTENDER_SESSION_KEY)
+    return s ? 'bartender' : 'login'
+  }
+
+  if (role === 'admin') {
+    const s = parseLocalStorage(ADMIN_SESSION_KEY)
+    return s ? 'admin' : 'admin-login'
+  }
+
+  return 'role-picker'
 }
 
 // ── UI components ─────────────────────────────────────────────────────────────
@@ -125,8 +189,14 @@ export default function App() {
   // Ref lets useScreen.go() resolve the current bartender bar id for /staff/:barId
   // without a render cycle (bartenderBar is defined just below).
   const bartenderBarRef = useRef(null)
+
+  // Compute the role-based initial screen once at mount.
+  // initialReturn (MP redirect) takes priority inside useScreen.
+  const initialScreenRef = useRef(computeInitialScreen())
+
   const { screen, go, pathname } = useScreen({
     initialReturn,
+    initialScreen: initialScreenRef.current,
     resolveBarId: () => bartenderBarRef.current?.id,
   })
 
@@ -135,14 +205,12 @@ export default function App() {
   const [assignedBar, setAssignedBar] = useState(() => loadPersisted(PERSIST_BAR))
   const [bartenderBar, setBartenderBar] = useState(() => {
     try {
-      // Prefer the directly-persisted bartenderBar object (covers both login and dev picker)
-      const bar = JSON.parse(localStorage.getItem(BARTENDER_BAR_KEY) || 'null')
+      const bar = parseLocalStorage(BARTENDER_BAR_KEY)
       if (bar) {
         const urlBarId = barIdFromPath(pathname)
         if (!urlBarId || urlBarId === bar.id) return bar
       }
-      // Fall back to session key (written by handleBartenderLogin)
-      const s = JSON.parse(localStorage.getItem(BARTENDER_SESSION_KEY) || 'null')
+      const s = parseLocalStorage(BARTENDER_SESSION_KEY)
       if (s) {
         const urlBarId = barIdFromPath(pathname)
         if (!urlBarId || urlBarId === s.barId) {
@@ -152,14 +220,15 @@ export default function App() {
     } catch {}
     return null
   })
-  const [activeOrder, setActiveOrder] = useState(() => loadPersisted(PERSIST_ORDER))
+  const [adminSession, setAdminSession] = useState(() => parseLocalStorage(ADMIN_SESSION_KEY))
+  const [activeOrder, setActiveOrder]   = useState(() => loadPersisted(PERSIST_ORDER))
   const [selectedEvent, setSelectedEvent] = useState(() => loadPersisted(PERSIST_EVENT))
 
   const { data: bars = [] } = useBars()
   const productMap = useProductMap()
   const healthStatus = useBackendHealth()
 
-  // Persist state to sessionStorage so refresh restores the current view
+  // Persist customer state
   useEffect(() => { savePersisted(PERSIST_CART, cart) }, [cart])
   useEffect(() => { selectedEvent ? savePersisted(PERSIST_EVENT, selectedEvent) : clearPersisted(PERSIST_EVENT) }, [selectedEvent])
   useEffect(() => { activeOrder   ? savePersisted(PERSIST_ORDER, activeOrder)   : clearPersisted(PERSIST_ORDER) }, [activeOrder])
@@ -174,16 +243,10 @@ export default function App() {
   useEffect(() => { document.documentElement.dataset.theme = theme }, [theme])
 
   // Handle return from Mercado Pago redirect.
-  // Re-reads pending fresh from localStorage so clearPending() before the async
-  // call acts as a once-only guard — React StrictMode runs effects twice in dev;
-  // the second invocation finds localStorage already empty and skips createOrder.
   useEffect(() => {
     if (!initialReturn) return
     const pending = loadPending()
     clearPending()
-    // Collapse any duplicate slashes (e.g. a trailing-slash web-origin yields
-    // "//?status=...") and fall back to "/" so replaceState never gets an
-    // invalid protocol-relative URL like "//".
     const cleanPath = window.location.pathname.replace(/\/{2,}/g, '/') || '/'
     window.history.replaceState({}, '', cleanPath)
     if (!pending || initialReturn.status !== 'approved') return
@@ -216,16 +279,12 @@ export default function App() {
   useEffect(() => {
     if (!pollEnabled || liveOrder === undefined) return
     if (liveOrder === null) {
-      // Order no longer exists: a vanished pickup reads as delivered, otherwise cancelled.
       go(screen === 'qr' ? 'confirmed' : 'order-cancelled')
       return
     }
     const status = liveOrder.status
-    // Terminal states first
     if (status === 'delivered') { go('confirmed'); return }
     if (status === 'cancelled') { go('order-cancelled'); return }
-    // Keep the customer's screen in sync with the live status — forward AND backward,
-    // so a bartender freeing a PREPARING order sends the customer back to 'queue'.
     if (status === 'ready') {
       if (screen !== 'ready' && screen !== 'qr') { notifyOrderReady(); go('ready') }
     } else if (status === 'preparing') {
@@ -253,7 +312,6 @@ export default function App() {
         if (cancelled) return
 
         if (pref?.simulated || !pref?.initPoint) {
-          // Simulated path: create the order now (no real payment needed)
           const order = await createOrder(items, undefined, total, selectedEvent?.id)
           if (cancelled) return
           const bar = bars.find(b => b.id === order.bar) ?? { id: order.bar, label: order.barLabel ?? order.bar, location: '' }
@@ -264,7 +322,6 @@ export default function App() {
           return
         }
 
-        // Real MP path: stash cart for after the redirect; order created on return
         savePending({ items, total, cart, event: selectedEvent })
         window.location.href = pref.initPoint
       } catch {
@@ -275,8 +332,103 @@ export default function App() {
     return () => { cancelled = true; clearTimeout(t) }
   }, [screen]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Role + session handlers ────────────────────────────────────────────────
+
+  function handleRolePick(role) {
+    saveRole(role)
+    if (role === 'user')      go('welcome')
+    else if (role === 'bartender') go('login')
+    else if (role === 'admin')     go('admin-login')
+  }
+
+  function handleBartenderLogin(session) {
+    saveBartenderSession(session)
+    const bar = { id: session.barId, label: session.barLabel, location: '', username: session.username, eventId: session.eventId }
+    setBartenderBar(bar)
+    go('bartender', { barId: session.barId })
+  }
+
+  async function handleDevBartenderSelect(bar) {
+    const password = DEV_BARTENDER_PASSWORDS[bar.id]
+    if (password) {
+      try {
+        const session = await loginBartender(bar.id, password)
+        handleBartenderLogin(session)
+        return
+      } catch {
+        // fall through to unauthenticated view
+      }
+    }
+    setBartenderBar(bar)
+    go('bartender', { barId: bar.id })
+  }
+
+  function handleAdminLogin(session) {
+    saveAdminSession(session)
+    setAdminSession(session)
+    go('admin')
+  }
+
+  async function handleDevAdminSelect(eventId) {
+    const creds = DEV_ADMIN_CREDS[eventId]
+    if (!creds) return
+    try {
+      const session = await loginAdmin(creds.username, creds.password)
+      handleAdminLogin(session)
+    } catch {
+      // backend down — silently ignore
+    }
+  }
+
+  function handleLogout() {
+    clearBartenderSession()
+    clearRole()
+    setBartenderBar(null)
+    clearPersisted(PERSIST_SCREEN, PERSIST_CART, PERSIST_EVENT, PERSIST_ORDER, PERSIST_BAR)
+    go('role-picker')
+  }
+
+  function handleAdminLogout() {
+    clearAdminSession()
+    clearRole()
+    setAdminSession(null)
+    clearPersisted(PERSIST_SCREEN)
+    go('role-picker')
+  }
+
+  function handleUserLogout() {
+    clearRole()
+    setCart({})
+    setAssignedBar(null)
+    setActiveOrder(null)
+    setSelectedEvent(null)
+    clearPersisted(PERSIST_SCREEN, PERSIST_CART, PERSIST_EVENT, PERSIST_ORDER, PERSIST_BAR)
+    go('role-picker')
+  }
+
+  // ── UI helpers ─────────────────────────────────────────────────────────────
+
   const title      = TITLES[screen]
   const backTarget = BACK_TARGETS[screen]
+
+  const isBartenderView = screen === 'bartender' || screen === 'bartender-scanner'
+  const isAdminView     = screen === 'admin'
+  const isStaffView     = isBartenderView || isAdminView
+
+  const navTitle = isBartenderView
+    ? (bartenderBar?.label ?? 'Barra')
+    : isAdminView
+      ? (adminSession?.eventName ?? 'Evento')
+      : title
+
+  const noNavScreens = new Set(['role-picker', 'login', 'admin-login', 'welcome'])
+  const showNavBar = !!navTitle && !noNavScreens.has(screen)
+
+  const onBack =
+    screen === 'menu'          ? handleBackFromMenu :
+    backTarget                 ? () => go(backTarget) :
+    screen === 'payment-setup' ? () => go('bartender', { barId: bartenderBar?.id }) :
+    null
 
   function handleBackFromMenu() {
     const hasItems = Object.values(cart).some(q => q > 0)
@@ -298,47 +450,7 @@ export default function App() {
     go('menu')
   }
 
-  function handleBartenderLogin(session) {
-    saveBartenderSession(session)
-    const bar = { id: session.barId, label: session.barLabel, location: '', username: session.username, eventId: session.eventId }
-    setBartenderBar(bar)
-    go('bartender', { barId: session.barId })
-  }
-
-  // Dev picker: auto-authenticate with the seed credentials so a real token is
-  // stored and gated writes work. Falls back to opening the view unauthenticated
-  // (writes will 401) if the bar isn't a known seed or the backend is down.
-  async function handleDevBartenderSelect(bar) {
-    const password = DEV_BARTENDER_PASSWORDS[bar.id]
-    if (password) {
-      try {
-        const session = await loginBartender(bar.id, password)
-        handleBartenderLogin(session)
-        return
-      } catch {
-        // fall through to unauthenticated view
-      }
-    }
-    setBartenderBar(bar)
-    go('bartender', { barId: bar.id })
-  }
-
-  function handleLogout() {
-    clearBartenderSession()
-    localStorage.removeItem(BARTENDER_BAR_KEY)
-    setBartenderBar(null)
-    clearPersisted(PERSIST_SCREEN, PERSIST_CART, PERSIST_EVENT, PERSIST_ORDER, PERSIST_BAR)
-    go('login')
-  }
-
-  const isBartenderView = screen === 'bartender' || screen === 'bartender-scanner'
-  const navTitle   = isBartenderView ? (bartenderBar?.label ?? 'Barra') : title
-  const showNavBar = !!navTitle && screen !== 'login' && screen !== 'welcome'
-  const onBack     =
-    screen === 'menu'          ? handleBackFromMenu :
-    backTarget                 ? () => go(backTarget) :
-    screen === 'payment-setup' ? () => go('bartender', { barId: bartenderBar?.id }) :
-    null
+  const showThemeBtn = noNavScreens.has(screen)
 
   return (
     <div className="phone">
@@ -350,19 +462,24 @@ export default function App() {
           onBack={onBack}
           theme={theme}
           onToggleTheme={toggleTheme}
-          variant={isBartenderView ? 'bartender' : undefined}
-          right={isBartenderView ? (
-            <button className="bartender-logout" onClick={handleLogout}>Cerrar sesión</button>
+          variant={isStaffView ? 'bartender' : undefined}
+          right={isStaffView ? (
+            <button
+              className="bartender-logout"
+              onClick={isBartenderView ? handleLogout : handleAdminLogout}
+            >
+              Cerrar sesión
+            </button>
           ) : null}
         />
       )}
 
       <div
         key={screen}
-        className={`screen-fade${(screen === 'bartender' || screen === 'bartender-scanner') ? ' bartender-scope' : ''}`}
+        className={`screen-fade${isStaffView ? ' bartender-scope' : ''}`}
         style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}
       >
-        {(screen === 'login' || screen === 'welcome') && (
+        {showThemeBtn && (
           <button
             className="theme-btn"
             onClick={toggleTheme}
@@ -373,10 +490,26 @@ export default function App() {
           </button>
         )}
 
+        {screen === 'role-picker' && (
+          <RolePickerScreen onRole={handleRolePick} />
+        )}
+
         {screen === 'login' && (
           <LoginScreen
-            onCustomer={() => go('welcome')}
-            onBartenderLogin={handleBartenderLogin}
+            role="bartender"
+            onLogin={handleBartenderLogin}
+            onChangeRole={handleUserLogout}
+            onBartenderPicker={() => go('bartender-bar')}
+          />
+        )}
+
+        {screen === 'admin-login' && (
+          <LoginScreen
+            role="admin"
+            onLogin={handleAdminLogin}
+            onChangeRole={() => { clearRole(); go('role-picker') }}
+            devShortcuts={DEV_ADMIN_SHORTCUTS}
+            onDevShortcut={handleDevAdminSelect}
           />
         )}
 
@@ -389,7 +522,7 @@ export default function App() {
               }
               go('menu')
             }}
-            onBack={() => go('login')}
+            onBack={() => go('role-picker')}
           />
         )}
 
@@ -475,6 +608,15 @@ export default function App() {
             eventId={bartenderBar?.eventId}
             eventName={bartenderBar?.eventId ?? 'Evento'}
             onBack={() => go('bartender')}
+          />
+        )}
+
+        {screen === 'admin' && (
+          <PaymentSetupScreen
+            eventId={adminSession?.eventId}
+            eventName={adminSession?.eventName ?? 'Evento'}
+            onBack={handleAdminLogout}
+            backLabel="← Cambiar rol"
           />
         )}
       </div>

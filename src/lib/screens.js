@@ -2,7 +2,8 @@
 // state machine (see useScreen).
 
 export const SCREEN_TO_PATH = {
-  login:               '/',
+  'role-picker':       '/',
+  login:               '/login',
   welcome:             '/events',
   menu:                '/menu',
   order:               '/order',
@@ -19,19 +20,25 @@ export const SCREEN_TO_PATH = {
   bartender:           '/staff',
   'bartender-scanner': '/staff',
   'payment-setup':     '/staff/setup',
+  'admin-login':       '/admin/login',
+  admin:               '/admin',
 }
 
 export const PATH_TO_SCREEN = {
-  '/':            'login',
-  '/events':      'welcome',
-  '/menu':        'menu',
-  '/order':       'order',
-  '/payment':     'payment',
-  '/queue':       'queue',
-  '/pickup':      'qr',
-  '/cancelled':   'order-cancelled',
-  '/staff/setup': 'payment-setup',
-  '/staff':       'bartender',
+  '/':             'role-picker',
+  '/login':        'login',
+  '/events':       'welcome',
+  '/menu':         'menu',
+  '/order':        'order',
+  '/payment':      'payment',
+  '/queue':        'queue',
+  '/pickup':       'qr',
+  '/cancelled':    'order-cancelled',
+  '/staff/bars':   'bartender-bar',
+  '/staff/setup':  'payment-setup',
+  '/staff':        'bartender',
+  '/admin/login':  'admin-login',
+  '/admin':        'admin',
 }
 
 export const TITLES = {
@@ -50,6 +57,7 @@ export const TITLES = {
   bartender:           '—',
   'bartender-scanner': '—',
   'payment-setup':     'Configurar pagos',
+  admin:               '—',
 }
 
 export const BACK_TARGETS = {
@@ -66,6 +74,8 @@ export const TRANSIENT_SCREENS = new Set(['payment', 'paying', 'rejected'])
 export function pathToScreen(pathname) {
   if (pathname.startsWith('/staff/setup')) return 'payment-setup'
   if (pathname.startsWith('/staff/'))      return 'bartender'
+  if (pathname.startsWith('/admin/login')) return 'admin-login'
+  if (pathname === '/admin')               return 'admin'
   return PATH_TO_SCREEN[pathname] ?? null
 }
 

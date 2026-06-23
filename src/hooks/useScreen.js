@@ -8,6 +8,8 @@ import { SCREEN_TO_PATH, pathToScreen, TRANSIENT_SCREENS } from '../lib/screens.
  *
  * - `initialReturn`: parsed Mercado Pago return info (or null) used to pick the
  *   initial screen after a payment redirect.
+ * - `initialScreen`: caller-computed initial screen that overrides the saved/URL
+ *   fallback (used for role-based boot routing in App.jsx).
  * - `resolveBarId`: function returning the current bartender bar id, read lazily
  *   at navigation time (for `/staff/:barId`) to avoid a state cycle with the
  *   caller's bartender-bar state.
@@ -15,16 +17,17 @@ import { SCREEN_TO_PATH, pathToScreen, TRANSIENT_SCREENS } from '../lib/screens.
  * Returns `{ screen, go, pathname }`. `go(screen, { barId })` sets the screen,
  * persists it, and navigates.
  */
-export function useScreen({ initialReturn, resolveBarId }) {
+export function useScreen({ initialReturn, initialScreen, resolveBarId }) {
   const navigate = useNavigate()
   const location = useLocation()
 
   const [screen, setScreen] = useState(() => {
     if (initialReturn?.status === 'approved' && initialReturn.pending) return 'queue'
     if (initialReturn?.status === 'rejected' || initialReturn?.status === 'failure') return 'rejected'
+    if (initialScreen) return initialScreen
     const saved = loadPersisted(PERSIST_SCREEN)
     if (saved && !TRANSIENT_SCREENS.has(saved)) return saved
-    return pathToScreen(location.pathname) ?? 'login'
+    return pathToScreen(location.pathname) ?? 'role-picker'
   })
 
   function go(s, opts = {}) {

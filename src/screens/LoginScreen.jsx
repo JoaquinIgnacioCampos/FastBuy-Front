@@ -1,32 +1,58 @@
 import { useState } from 'react'
 import { useLoginBartender } from '../hooks/useLoginBartender.js'
+import { useLoginAdmin }     from '../hooks/useLoginAdmin.js'
 
-export default function LoginScreen({ onCustomer, onBartenderLogin }) {
+const ROLE_LABELS = {
+  bartender: { title: 'Bartender', submit: 'Entrar como bartender', role: 'bartender' },
+  admin:     { title: 'Organizador',  submit: 'Entrar como organizador', role: 'admin'     },
+}
+
+/**
+ * Shared login form for bartender and admin roles.
+ *
+ * Props:
+ *   role           – 'bartender' | 'admin'
+ *   onLogin        – called with the session object on success
+ *   onChangeRole   – navigates back to the role picker
+ *   onBartenderPicker – (bartender role only) opens the dev bar-select screen
+ *   devShortcuts   – (admin role only) [{ id, label }] for dev quick-login buttons
+ *   onDevShortcut  – (admin role only) called with shortcut id
+ */
+export default function LoginScreen({
+  role = 'bartender',
+  onLogin,
+  onChangeRole,
+  onBartenderPicker,
+  devShortcuts,
+  onDevShortcut,
+}) {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError]       = useState(null)
-  const loginMutation = useLoginBartender()
 
-  const isStaff = username.trim().length > 0 && password.length > 0
+  const bartenderMutation = useLoginBartender()
+  const adminMutation     = useLoginAdmin()
+  const mutation          = role === 'admin' ? adminMutation : bartenderMutation
+
+  const config  = ROLE_LABELS[role] ?? ROLE_LABELS.bartender
+  const loading = mutation.isPending
+  const canSubmit = username.trim().length > 0 && password.length > 0
 
   async function handleSubmit(e) {
     e.preventDefault()
+    if (!canSubmit) return
     setError(null)
-
-    if (!isStaff) {
-      onCustomer()
-      return
-    }
-
     try {
-      const session = await loginMutation.mutateAsync({ username: username.trim(), password })
-      onBartenderLogin(session)
-    } catch {
-      setError('Credenciales inválidas')
+      const session = await mutation.mutateAsync({ username: username.trim(), password })
+      onLogin(session)
+    } catch (err) {
+      if (err instanceof TypeError) {
+        setError('Sin conexión al servidor. Verificá tu internet e intentá de nuevo.')
+      } else {
+        setError('Usuario o contraseña incorrectos.')
+      }
     }
   }
-
-  const loading = loginMutation.isPending
 
   return (
     <div style={{
@@ -34,13 +60,15 @@ export default function LoginScreen({ onCustomer, onBartenderLogin }) {
       alignItems: 'center', justifyContent: 'center',
       padding: '32px 28px 28px', gap: 28, overflowY: 'auto',
     }}>
-      {/* Brand */}
+      {/* Brand + role context */}
       <div style={{ textAlign: 'center' }}>
         <div className="brand-mark">FastBuy</div>
-        <div style={{ fontSize: 13, color: 'var(--text-mute)', marginTop: 6 }}>Pedí desde tu lugar</div>
+        <div style={{ fontSize: 13, color: 'var(--text-mute)', marginTop: 6 }}>
+          Acceso — {config.title}
+        </div>
       </div>
 
-      {/* Login form */}
+      {/* Credential form */}
       <form onSubmit={handleSubmit} style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div>
           <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-mute)', marginBottom: 6, display: 'block' }}>
@@ -49,7 +77,7 @@ export default function LoginScreen({ onCustomer, onBartenderLogin }) {
           <input
             type="text"
             autoComplete="username"
-            placeholder="Usuario de bartender (opcional)"
+            placeholder="Nombre de usuario"
             value={username}
             onChange={e => { setUsername(e.target.value); setError(null) }}
             style={{
@@ -70,7 +98,7 @@ export default function LoginScreen({ onCustomer, onBartenderLogin }) {
           <input
             type="password"
             autoComplete="current-password"
-            placeholder="Contraseña (opcional)"
+            placeholder="Contraseña"
             value={password}
             onChange={e => { setPassword(e.target.value); setError(null) }}
             style={{
@@ -97,7 +125,7 @@ export default function LoginScreen({ onCustomer, onBartenderLogin }) {
         <button
           type="submit"
           className="btn-primary"
-          disabled={loading}
+          disabled={loading || !canSubmit}
           style={{ marginTop: 4 }}
         >
           {loading ? (
@@ -105,15 +133,70 @@ export default function LoginScreen({ onCustomer, onBartenderLogin }) {
               <span style={{ display: 'inline-block', width: 16, height: 16, border: '2px solid var(--accent-on)', borderTopColor: 'transparent', borderRadius: '50%', animation: 'fb-spin 0.7s linear infinite' }} />
               Entrando…
             </span>
-          ) : isStaff ? 'Entrar como bartender' : 'Entrar al evento →'}
+          ) : config.submit}
         </button>
 
-        <div style={{ fontSize: 12, color: 'var(--text-mute)', textAlign: 'center', lineHeight: 1.5 }}>
-          {isStaff
-            ? 'Se verificará con el servidor.'
-            : 'Dejá los campos vacíos para entrar como cliente.'}
-        </div>
+        {onChangeRole && (
+          <button
+            type="button"
+            onClick={onChangeRole}
+            style={{
+              fontSize: 13, color: 'var(--text-dim)', background: 'none',
+              border: 'none', cursor: 'pointer', padding: '4px 0', textAlign: 'center',
+            }}
+          >
+            ‹ Cambiar rol
+          </button>
+        )}
       </form>
+
+      {/* Dev shortcuts */}
+      <div style={{
+        width: '100%', paddingTop: 16,
+        borderTop: '1px dashed var(--border)',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
+      }}>
+        <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-mute)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+          Dev / testing
+        </div>
+
+        {role === 'bartender' && onBartenderPicker && (
+          <button
+            type="button"
+            onClick={onBartenderPicker}
+            className="tap-press"
+            style={{
+              fontSize: 13, fontWeight: 600, color: 'var(--text)',
+              padding: '10px 18px', borderRadius: 99,
+              border: '1px solid var(--border-strong)',
+              background: 'var(--surface2)',
+            }}
+          >
+            Vista bartender 🍹
+          </button>
+        )}
+
+        {role === 'admin' && devShortcuts?.length > 0 && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}>
+            {devShortcuts.map(s => (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => onDevShortcut?.(s.id)}
+                className="tap-press"
+                style={{
+                  fontSize: 12, fontWeight: 600, color: 'var(--text)',
+                  padding: '8px 14px', borderRadius: 99,
+                  border: '1px solid var(--border-strong)',
+                  background: 'var(--surface2)',
+                }}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
