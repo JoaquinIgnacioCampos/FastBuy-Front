@@ -6,6 +6,16 @@ async function req(url, opts) {
   return r
 }
 
+// Bearer token from the stored bartender session, sent on gated write endpoints.
+function bartenderAuthHeaders() {
+  try {
+    const token = JSON.parse(localStorage.getItem('fb_bartender_session'))?.token
+    return token ? { Authorization: `Bearer ${token}` } : {}
+  } catch {
+    return {}
+  }
+}
+
 // ── Orders ───────────────────────────────────────────────────────────────────
 
 export async function getOrders(barId) {
@@ -21,25 +31,25 @@ export async function getDeliveredOrders(barId) {
 export async function advanceOrder(id, bartenderId) {
   const r = await req(`${BASE}/orders/${id}/advance`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...bartenderAuthHeaders() },
     body: JSON.stringify({ bartenderId: bartenderId ?? null }),
   })
   return r.json()
 }
 
 export async function releaseOrder(id) {
-  const r = await req(`${BASE}/orders/${id}/release`, { method: 'POST' })
+  const r = await req(`${BASE}/orders/${id}/release`, { method: 'POST', headers: bartenderAuthHeaders() })
   return r.json()
 }
 
 
 export async function markDelivered(id) {
-  const r = await req(`${BASE}/orders/${id}/deliver`, { method: 'POST' })
+  const r = await req(`${BASE}/orders/${id}/deliver`, { method: 'POST', headers: bartenderAuthHeaders() })
   return r.json()
 }
 
 export async function cancelOrder(id) {
-  const r = await req(`${BASE}/orders/${id}/cancel`, { method: 'POST' })
+  const r = await req(`${BASE}/orders/${id}/cancel`, { method: 'POST', headers: bartenderAuthHeaders() })
   return r.json()
 }
 
