@@ -84,3 +84,8 @@ React 19 + Vite frontend for FastBuy. Runs on port 5173. Started via `start-fast
 - **Payments:** MP `auto_return` is only enabled for an `https` `web-origin` (`PaymentsService`); MP returns 400 (`auto_return invalid. back_url.success must be defined`) for a localhost back_url. Local dev uses the ngrok https origin so auto-return works; hosted prod uses `https://*.pages.dev`.
 - **Dev MP test product:** `p_test` ("Test MP $5", served at all bars) floats to the **top** of the menu (`MenuScreen` `items` sort). It only exists in the dev seed, so the sort is a no-op in prod.
 - All the above are on **develop**; not yet cherry-picked to **production**.
+
+### 2026-06-22 — Code-review pass (develop)
+- **Bartender writes are auth-gated.** advance/deliver/cancel/release send `Authorization: Bearer <token>` (read from the stored bartender session by `bartenderAuthHeaders()` in `api.js`). Login now returns a `token`. **After this deploys you must log out/in** — pre-existing sessions have no token and their writes 401.
+- **App.jsx slimmed.** The screen state machine moved to `src/hooks/useScreen.js`; routing maps + `pathToScreen`/`barIdFromPath`/`TITLES`/`BACK_TARGETS`/`TRANSIENT_SCREENS` to `src/lib/screens.js`; localStorage `PERSIST_*` helpers to `src/lib/persist.js`. `go()` resolves the bartender bar id lazily via a ref. (Persistence helpers were renamed `loadSS`→`loadPersisted` etc. earlier in the pass.)
+- **Queue position** is shown from the live `GET /orders/{id}` (`queuePosition`); the fake "Saldo $18.450" line was removed from `PaymentScreen`.
