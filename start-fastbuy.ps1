@@ -1,5 +1,10 @@
+# Local dev launcher. Runs the backend + Vite, then an ngrok tunnel so Mercado
+# Pago has a public https URL to redirect back to (auto_return needs a public
+# origin — it cannot return to localhost). Other devices / the hosted demo are
+# separate; this tunnel is just for local MP testing.
 $FRONT  = $PSScriptRoot
 $BACK   = Resolve-Path (Join-Path $FRONT '..\FastBuy-Back')
+$DOMAIN = 'crepe-phonics-slogan.ngrok-free.dev'
 
 function Free-Port($port) {
     netstat -ano | Select-String "TCP.*:$port\s+.*LISTENING" | ForEach-Object {
@@ -21,18 +26,22 @@ Write-Host 'Starting Vite frontend...' -ForegroundColor Cyan
 $frontend = Start-Process cmd -ArgumentList '/k', "cd /d `"$FRONT`" && npm run dev" -PassThru
 
 Write-Host 'Waiting for Vite to bind port 5173...' -ForegroundColor Cyan
-Start-Sleep -Seconds 8
+Start-Sleep -Seconds 10
 
-Start-Process 'http://localhost:5173'
+Write-Host 'Starting ngrok tunnel...' -ForegroundColor Cyan
+$ngrok = Start-Process cmd -ArgumentList '/k', "ngrok http --domain=$DOMAIN 5173" -PassThru
+
+Start-Sleep -Seconds 3
+Start-Process "https://$DOMAIN"
 
 Write-Host ''
 Write-Host '==========================================================' -ForegroundColor Green
-Write-Host '  FastBuy is running (local)' -ForegroundColor Green
+Write-Host '  FastBuy is running' -ForegroundColor Green
 Write-Host '==========================================================' -ForegroundColor Green
-Write-Host '  URL:  http://localhost:5173'
+Write-Host "  URL:  https://$DOMAIN"
 Write-Host '  API:  /api/*  ->  http://localhost:8080/*'
+Write-Host '  (ngrok URL gives MP a public return URL for local payments)'
 Write-Host ''
-Write-Host '  Other devices use the hosted URL, not this local instance.'
 Write-Host '  Press ENTER to stop all services.' -ForegroundColor Yellow
 Write-Host '==========================================================' -ForegroundColor Green
 Write-Host ''
@@ -41,9 +50,9 @@ try {
     $null = Read-Host
 } finally {
     Write-Host 'Stopping services...' -ForegroundColor Cyan
-    foreach ($proc in @($backend, $frontend)) {
+    foreach ($proc in @($backend, $frontend, $ngrok)) {
         if ($null -ne $proc -and -not $proc.HasExited) {
-            # /T kills the entire process tree (cmd + its children: mvnw/node)
+            # /T kills the entire process tree (cmd + its children: mvnw/node/ngrok)
             taskkill /F /T /PID $proc.Id 2>$null
         }
     }

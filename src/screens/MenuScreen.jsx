@@ -19,7 +19,11 @@ export default function MenuScreen({ cart, onCartChange, onCheckout, event }) {
   const activeCategory = category ?? firstCategory
 
   const items = useMemo(
-    () => (menu.data ?? []).filter(p => p.category === activeCategory),
+    () => (menu.data ?? [])
+      .filter(p => p.category === activeCategory)
+      // Dev-only MP test product floats to the top for quick payment testing.
+      // (It only exists in the dev seed, so this is a no-op in production.)
+      .sort((a, b) => (a.id === 'p_test' ? -1 : b.id === 'p_test' ? 1 : 0)),
     [menu.data, activeCategory]
   )
 
