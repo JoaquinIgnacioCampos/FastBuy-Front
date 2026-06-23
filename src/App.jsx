@@ -647,6 +647,7 @@ export default function App() {
           <AdminScreen
             eventId={adminSession?.eventId}
             eventName={adminSession?.eventName ?? 'Evento'}
+            adminToken={adminSession?.token}
           />
         )}
         </div>{/* screen-fade */}
