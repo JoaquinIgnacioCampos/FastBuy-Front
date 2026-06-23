@@ -1,5 +1,4 @@
-import { useState, useEffect } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useState, useEffect, useRef } from 'react'
 import './App.css'
 
 import LoginScreen        from './screens/LoginScreen'
@@ -17,104 +16,16 @@ import { useProductMap, resolveProduct } from './hooks/useMenu.js'
 import { useOrderStatus }             from './hooks/useOrderStatus.js'
 import { useBackendHealth }           from './hooks/useBackendHealth.js'
 import { createOrder, createPaymentPreference } from './services/api'
+import { useScreen } from './hooks/useScreen.js'
+import { loadPersisted, savePersisted, clearPersisted,
+         PERSIST_SCREEN, PERSIST_CART, PERSIST_EVENT, PERSIST_ORDER, PERSIST_BAR } from './lib/persist.js'
+import { TITLES, BACK_TARGETS, barIdFromPath } from './lib/screens.js'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const PENDING_KEY          = 'fb_pending_payment'
 const BARTENDER_SESSION_KEY = 'fb_bartender_session'
 const BARTENDER_BAR_KEY     = 'fb_bartender_bar'
-const PERSIST_SCREEN = 'fb_screen'
-const PERSIST_CART   = 'fb_cart'
-const PERSIST_EVENT  = 'fb_event'
-const PERSIST_ORDER  = 'fb_order'
-const PERSIST_BAR    = 'fb_bar'
-
-const SCREEN_TO_PATH = {
-  login:               '/',
-  welcome:             '/events',
-  menu:                '/menu',
-  order:               '/order',
-  payment:             '/payment',
-  paying:              '/payment',
-  rejected:            '/payment',
-  queue:               '/queue',
-  preparing:           '/queue',
-  ready:               '/queue',
-  offline:             '/queue',
-  qr:                  '/pickup',
-  confirmed:           '/pickup',
-  'order-cancelled':   '/cancelled',
-  'bartender-bar':     '/staff/bars',
-  bartender:           '/staff',
-  'bartender-scanner': '/staff',
-  'payment-setup':     '/staff/setup',
-}
-
-const PATH_TO_SCREEN = {
-  '/':            'login',
-  '/events':      'welcome',
-  '/menu':        'menu',
-  '/order':       'order',
-  '/payment':     'payment',
-  '/queue':       'queue',
-  '/pickup':      'qr',
-  '/cancelled':   'order-cancelled',
-  '/staff/bars':  'bartender-bar',
-  '/staff/setup': 'payment-setup',
-  '/staff':       'bartender',
-}
-
-function pathToScreen(pathname) {
-  if (pathname.startsWith('/staff/setup')) return 'payment-setup'
-  if (pathname.startsWith('/staff/bars'))  return 'bartender-bar'
-  if (pathname.startsWith('/staff/'))      return 'bartender'
-  return PATH_TO_SCREEN[pathname] ?? null
-}
-
-function barIdFromPath(pathname) {
-  const m = pathname.match(/^\/staff\/([^/]+)$/)
-  return m ? m[1] : null
-}
-
-const TITLES = {
-  menu:                'Menú',
-  order:               'Tu pedido',
-  payment:             'Mercado Pago',
-  paying:              'Procesando pago',
-  rejected:            'Pago rechazado',
-  queue:               'Cola virtual',
-  preparing:           'Cola virtual',
-  ready:               'Cola virtual',
-  offline:             'Sin conexión',
-  qr:                  'Retirar pedido',
-  confirmed:           'Pedido retirado',
-  'order-cancelled':   'Pedido cancelado',
-  'bartender-bar':     'Seleccionar Barra',
-  bartender:           '—',
-  'bartender-scanner': '—',
-  'payment-setup':     'Configurar pagos',
-}
-
-const BACK_TARGETS = {
-  order:    'menu',
-  payment:  'order',
-  rejected: 'order',
-}
-
-// Transient checkout screens must never be auto-resumed from persisted state:
-// 'paying' immediately re-fires the payment effect (with a possibly-empty cart,
-// which fails), and 'payment'/'rejected' are mid-flow steps.
-const TRANSIENT_SCREENS = new Set(['payment', 'paying', 'rejected'])
-
-// ── Persisted-flow helpers ────────────────────────────────────────────────────
-// Backed by localStorage (not sessionStorage) so a customer who closes the app
-// mid-order can reopen it on the same device and land back on their order/queue.
-// Cleared on delivery (resetOrder), logout, and leaving an event.
-
-function loadPersisted(key)        { try { return JSON.parse(localStorage.getItem(key)) } catch { return null } }
-function savePersisted(key, val)   { try { localStorage.setItem(key, JSON.stringify(val)) } catch {} }
-function clearPersisted(...keys)   { keys.forEach(k => { try { localStorage.removeItem(k) } catch {} }) }
-
 // ── localStorage helpers ──────────────────────────────────────────────────────
 
 function savePending(payload) {
@@ -197,29 +108,15 @@ function NavBar({ title, onBack, right, theme, onToggleTheme, variant }) {
 // ── App ───────────────────────────────────────────────────────────────────────
 
 export default function App() {
-  const navigate = useNavigate()
-  const location = useLocation()
-
   const initialReturn = useState(() => readReturnFromPayment())[0]
 
-  const [screen, setScreenRaw] = useState(() => {
-    if (initialReturn?.status === 'approved' && initialReturn.pending) return 'queue'
-    if (initialReturn?.status === 'rejected' || initialReturn?.status === 'failure') return 'rejected'
-    const saved = loadPersisted(PERSIST_SCREEN)
-    if (saved && !TRANSIENT_SCREENS.has(saved)) return saved
-    return pathToScreen(location.pathname) ?? 'login'
+  // Ref lets useScreen.go() resolve the current bartender bar id for /staff/:barId
+  // without a render cycle (bartenderBar is defined just below).
+  const bartenderBarRef = useRef(null)
+  const { screen, go, pathname } = useScreen({
+    initialReturn,
+    resolveBarId: () => bartenderBarRef.current?.id,
   })
-
-  function go(s, opts = {}) {
-    setScreenRaw(s)
-    savePersisted(PERSIST_SCREEN, s)
-    const barId = opts.barId ?? bartenderBar?.id
-    const path =
-      (s === 'bartender' || s === 'bartender-scanner') && barId
-        ? `/staff/${barId}`
-        : SCREEN_TO_PATH[s] ?? '/'
-    navigate(path)
-  }
 
   const [cart, setCart]               = useState(() => loadPersisted(PERSIST_CART) ?? {})
   const [theme, setTheme]             = useState('dark')
@@ -229,13 +126,13 @@ export default function App() {
       // Prefer the directly-persisted bartenderBar object (covers both login and dev picker)
       const bar = JSON.parse(localStorage.getItem(BARTENDER_BAR_KEY) || 'null')
       if (bar) {
-        const urlBarId = barIdFromPath(location.pathname)
+        const urlBarId = barIdFromPath(pathname)
         if (!urlBarId || urlBarId === bar.id) return bar
       }
       // Fall back to session key (written by handleBartenderLogin)
       const s = JSON.parse(localStorage.getItem(BARTENDER_SESSION_KEY) || 'null')
       if (s) {
-        const urlBarId = barIdFromPath(location.pathname)
+        const urlBarId = barIdFromPath(pathname)
         if (!urlBarId || urlBarId === s.barId) {
           return { id: s.barId, label: s.barLabel, location: '', username: s.username, eventId: s.eventId }
         }
@@ -256,6 +153,7 @@ export default function App() {
   useEffect(() => { activeOrder   ? savePersisted(PERSIST_ORDER, activeOrder)   : clearPersisted(PERSIST_ORDER) }, [activeOrder])
   useEffect(() => { assignedBar   ? savePersisted(PERSIST_BAR, assignedBar)     : clearPersisted(PERSIST_BAR) }, [assignedBar])
   useEffect(() => {
+    bartenderBarRef.current = bartenderBar
     bartenderBar
       ? localStorage.setItem(BARTENDER_BAR_KEY, JSON.stringify(bartenderBar))
       : localStorage.removeItem(BARTENDER_BAR_KEY)
