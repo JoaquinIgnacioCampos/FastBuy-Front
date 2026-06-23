@@ -177,7 +177,7 @@ function QRCameraScanner({ onScan }) {
 }
 
 // ── Main screen ───────────────────────────────────────────────
-export default function BartenderScreen({ onBack, onPaymentSetup, scannerPhase, onScannerOpen, onScannerClose, bartenderBar }) {
+export default function BartenderScreen({ scannerPhase, onScannerOpen, onScannerClose, bartenderBar }) {
   const [tab, setTab] = useState('queue')
   const [scannedOrder, setScannedOrder] = useState(null)
   const productMap = useProductMap()

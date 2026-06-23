@@ -23,11 +23,11 @@ import { createOrder, createPaymentPreference } from './services/api'
 const PENDING_KEY          = 'fb_pending_payment'
 const BARTENDER_SESSION_KEY = 'fb_bartender_session'
 const BARTENDER_BAR_KEY     = 'fb_bartender_bar'
-const SS_SCREEN = 'fb_screen'
-const SS_CART   = 'fb_cart'
-const SS_EVENT  = 'fb_event'
-const SS_ORDER  = 'fb_order'
-const SS_BAR    = 'fb_bar'
+const PERSIST_SCREEN = 'fb_screen'
+const PERSIST_CART   = 'fb_cart'
+const PERSIST_EVENT  = 'fb_event'
+const PERSIST_ORDER  = 'fb_order'
+const PERSIST_BAR    = 'fb_bar'
 
 const SCREEN_TO_PATH = {
   login:               '/',
@@ -111,9 +111,9 @@ const TRANSIENT_SCREENS = new Set(['payment', 'paying', 'rejected'])
 // mid-order can reopen it on the same device and land back on their order/queue.
 // Cleared on delivery (resetOrder), logout, and leaving an event.
 
-function loadSS(key)        { try { return JSON.parse(localStorage.getItem(key)) } catch { return null } }
-function saveSS(key, val)   { try { localStorage.setItem(key, JSON.stringify(val)) } catch {} }
-function clearSS(...keys)   { keys.forEach(k => { try { localStorage.removeItem(k) } catch {} }) }
+function loadPersisted(key)        { try { return JSON.parse(localStorage.getItem(key)) } catch { return null } }
+function savePersisted(key, val)   { try { localStorage.setItem(key, JSON.stringify(val)) } catch {} }
+function clearPersisted(...keys)   { keys.forEach(k => { try { localStorage.removeItem(k) } catch {} }) }
 
 // ── localStorage helpers ──────────────────────────────────────────────────────
 
@@ -205,14 +205,14 @@ export default function App() {
   const [screen, setScreenRaw] = useState(() => {
     if (initialReturn?.status === 'approved' && initialReturn.pending) return 'queue'
     if (initialReturn?.status === 'rejected' || initialReturn?.status === 'failure') return 'rejected'
-    const saved = loadSS(SS_SCREEN)
+    const saved = loadPersisted(PERSIST_SCREEN)
     if (saved && !TRANSIENT_SCREENS.has(saved)) return saved
     return pathToScreen(location.pathname) ?? 'login'
   })
 
   function go(s, opts = {}) {
     setScreenRaw(s)
-    saveSS(SS_SCREEN, s)
+    savePersisted(PERSIST_SCREEN, s)
     const barId = opts.barId ?? bartenderBar?.id
     const path =
       (s === 'bartender' || s === 'bartender-scanner') && barId
@@ -221,9 +221,9 @@ export default function App() {
     navigate(path)
   }
 
-  const [cart, setCart]               = useState(() => loadSS(SS_CART) ?? {})
+  const [cart, setCart]               = useState(() => loadPersisted(PERSIST_CART) ?? {})
   const [theme, setTheme]             = useState('dark')
-  const [assignedBar, setAssignedBar] = useState(() => loadSS(SS_BAR))
+  const [assignedBar, setAssignedBar] = useState(() => loadPersisted(PERSIST_BAR))
   const [bartenderBar, setBartenderBar] = useState(() => {
     try {
       // Prefer the directly-persisted bartenderBar object (covers both login and dev picker)
@@ -243,18 +243,18 @@ export default function App() {
     } catch {}
     return null
   })
-  const [activeOrder, setActiveOrder] = useState(() => loadSS(SS_ORDER))
-  const [selectedEvent, setSelectedEvent] = useState(() => loadSS(SS_EVENT))
+  const [activeOrder, setActiveOrder] = useState(() => loadPersisted(PERSIST_ORDER))
+  const [selectedEvent, setSelectedEvent] = useState(() => loadPersisted(PERSIST_EVENT))
 
   const { data: bars = [] } = useBars()
   const productMap = useProductMap()
   const healthStatus = useBackendHealth()
 
   // Persist state to sessionStorage so refresh restores the current view
-  useEffect(() => { saveSS(SS_CART, cart) }, [cart])
-  useEffect(() => { selectedEvent ? saveSS(SS_EVENT, selectedEvent) : clearSS(SS_EVENT) }, [selectedEvent])
-  useEffect(() => { activeOrder   ? saveSS(SS_ORDER, activeOrder)   : clearSS(SS_ORDER) }, [activeOrder])
-  useEffect(() => { assignedBar   ? saveSS(SS_BAR, assignedBar)     : clearSS(SS_BAR) }, [assignedBar])
+  useEffect(() => { savePersisted(PERSIST_CART, cart) }, [cart])
+  useEffect(() => { selectedEvent ? savePersisted(PERSIST_EVENT, selectedEvent) : clearPersisted(PERSIST_EVENT) }, [selectedEvent])
+  useEffect(() => { activeOrder   ? savePersisted(PERSIST_ORDER, activeOrder)   : clearPersisted(PERSIST_ORDER) }, [activeOrder])
+  useEffect(() => { assignedBar   ? savePersisted(PERSIST_BAR, assignedBar)     : clearPersisted(PERSIST_BAR) }, [assignedBar])
   useEffect(() => {
     bartenderBar
       ? localStorage.setItem(BARTENDER_BAR_KEY, JSON.stringify(bartenderBar))
@@ -373,10 +373,10 @@ export default function App() {
     if (hasItems) {
       if (!window.confirm('¿Salir del evento? Tu carrito se vaciará.')) return
       setCart({})
-      clearSS(SS_CART)
+      clearPersisted(PERSIST_CART)
     }
     setSelectedEvent(null)
-    clearSS(SS_EVENT)
+    clearPersisted(PERSIST_EVENT)
     go('welcome')
   }
 
@@ -384,7 +384,7 @@ export default function App() {
     setCart({})
     setAssignedBar(null)
     setActiveOrder(null)
-    clearSS(SS_CART, SS_ORDER, SS_BAR)
+    clearPersisted(PERSIST_CART, PERSIST_ORDER, PERSIST_BAR)
     go('menu')
   }
 
@@ -399,7 +399,7 @@ export default function App() {
     clearBartenderSession()
     localStorage.removeItem(BARTENDER_BAR_KEY)
     setBartenderBar(null)
-    clearSS(SS_SCREEN, SS_CART, SS_EVENT, SS_ORDER, SS_BAR)
+    clearPersisted(PERSIST_SCREEN, PERSIST_CART, PERSIST_EVENT, PERSIST_ORDER, PERSIST_BAR)
     go('login')
   }
 
@@ -533,8 +533,6 @@ export default function App() {
 
         {(screen === 'bartender' || screen === 'bartender-scanner') && (
           <BartenderScreen
-            onBack={handleLogout}
-            onPaymentSetup={bartenderBar?.eventId ? () => go('payment-setup') : null}
             scannerPhase={screen === 'bartender-scanner'}
             onScannerOpen={() => go('bartender-scanner', { barId: bartenderBar?.id })}
             onScannerClose={() => go('bartender', { barId: bartenderBar?.id })}
