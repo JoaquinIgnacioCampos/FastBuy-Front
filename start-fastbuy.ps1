@@ -1,6 +1,5 @@
 $FRONT  = $PSScriptRoot
 $BACK   = Resolve-Path (Join-Path $FRONT '..\FastBuy-Back')
-$DOMAIN = 'crepe-phonics-slogan.ngrok-free.dev'
 
 function Free-Port($port) {
     netstat -ano | Select-String "TCP.*:$port\s+.*LISTENING" | ForEach-Object {
@@ -22,21 +21,18 @@ Write-Host 'Starting Vite frontend...' -ForegroundColor Cyan
 $frontend = Start-Process cmd -ArgumentList '/k', "cd /d `"$FRONT`" && npm run dev" -PassThru
 
 Write-Host 'Waiting for Vite to bind port 5173...' -ForegroundColor Cyan
-Start-Sleep -Seconds 10
+Start-Sleep -Seconds 8
 
-Write-Host 'Starting ngrok tunnel...' -ForegroundColor Cyan
-$ngrok = Start-Process cmd -ArgumentList '/k', "ngrok http --domain=$DOMAIN 5173" -PassThru
-
-Start-Sleep -Seconds 3
-Start-Process "https://$DOMAIN"
+Start-Process 'http://localhost:5173'
 
 Write-Host ''
 Write-Host '==========================================================' -ForegroundColor Green
-Write-Host '  FastBuy is running' -ForegroundColor Green
+Write-Host '  FastBuy is running (local)' -ForegroundColor Green
 Write-Host '==========================================================' -ForegroundColor Green
-Write-Host "  URL:  https://$DOMAIN"
+Write-Host '  URL:  http://localhost:5173'
 Write-Host '  API:  /api/*  ->  http://localhost:8080/*'
 Write-Host ''
+Write-Host '  Other devices use the hosted URL, not this local instance.'
 Write-Host '  Press ENTER to stop all services.' -ForegroundColor Yellow
 Write-Host '==========================================================' -ForegroundColor Green
 Write-Host ''
@@ -45,9 +41,9 @@ try {
     $null = Read-Host
 } finally {
     Write-Host 'Stopping services...' -ForegroundColor Cyan
-    foreach ($proc in @($backend, $frontend, $ngrok)) {
+    foreach ($proc in @($backend, $frontend)) {
         if ($null -ne $proc -and -not $proc.HasExited) {
-            # /T kills the entire process tree (cmd + its children: mvnw/node/ngrok)
+            # /T kills the entire process tree (cmd + its children: mvnw/node)
             taskkill /F /T /PID $proc.Id 2>$null
         }
     }

@@ -71,3 +71,14 @@ React 19 + Vite frontend for FastBuy. Runs on port 5173. Started via `start-fast
 - `useAdvanceOrder` mutation arg changed from `id` to `{ id, bartenderId }`. Optimistic update sets `claimedBy` when QUEUE→PREPARING.
 - New `useReleaseOrder(barId)` hook in `src/hooks/useReleaseOrder.js`.
 - `BartenderScreen`: `preparingOnly` split into `myPreparing` (`claimedBy === myUsername` or unclaimed) and `othersPreparing` (`claimedBy` set to another user). My orders show "Marcar listo" + "Liberar pedido" buttons. Others' orders render as read-only cards at 65% opacity with a `🔒 [username]` chip in the header. Locked orders have no action buttons.
+
+### 2026-06-22 — Hosted deploy live; local launcher simplified; bartender/customer fixes (develop)
+- The app is now **hosted** (Cloudflare Pages frontend + Render backend). Other devices use the **hosted URL** — no ngrok tunnel needed for sharing.
+- `start-fastbuy.ps1` runs a **local-only** instance: backend (:8080, `local` profile) + Vite (:5173), opens `http://localhost:5173`. The ngrok start, `$DOMAIN`, and the `https://$DOMAIN` browser-open were removed; the stop loop no longer kills an ngrok process.
+- Customer now sees the **friendly bar name** (`order.barLabel`, e.g. "Barra Norte") instead of the bar id.
+- **No-show cancel:** bartender READY cards have a "Cancelar (no-show)" button (`useCancelOrder` → `POST /orders/{id}/cancel`).
+- **Bartender view = blue:** the NavBar is a solid `--mp` blue bar (bar name + theme toggle + Cerrar sesión, near-black contrast) via `.nav-bar--bartender`; content accent re-mapped to blue via `.bartender-scope`. The old in-screen logout row was removed.
+- **Customer order persistence:** customer-flow state moved from sessionStorage → localStorage (`loadSS/saveSS/clearSS`) so reopening on the same device restores the in-progress order. Transient checkout screens (`payment`/`paying`/`rejected`) are never auto-resumed (a restored `paying` re-fired payment with an empty cart → instant fail).
+- **Customer view syncs to live order state:** `useOrderStatus(orderId)` polls `GET /orders/{id}`; the effect syncs the screen forward AND backward — freed (preparing→queue) returns the customer to the queue, no-show (cancelled) shows the new `order-cancelled` screen, delivered → confirmed. Polling now also runs on the `ready` screen.
+- **Status-step connector** line is now `flex:1` (was a fixed 32px), spanning the full gap between dots.
+- All the above are on **develop**; not yet cherry-picked to **production**.
