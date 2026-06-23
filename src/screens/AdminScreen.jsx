@@ -8,7 +8,7 @@ const TABS = [
   { id: 'metrics',  label: '📊 Métricas',  soon: true },
 ]
 
-export default function AdminScreen({ eventId, eventName }) {
+export default function AdminScreen({ eventId, eventName, adminToken }) {
   const [tab, setTab] = useState('payments')
 
   return (
@@ -39,6 +39,7 @@ export default function AdminScreen({ eventId, eventName }) {
         <PaymentSetupScreen
           eventId={eventId}
           eventName={eventName}
+          adminToken={adminToken}
           hideFooter
         />
       )}

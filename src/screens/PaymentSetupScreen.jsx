@@ -1,12 +1,27 @@
-import { useState } from 'react'
-import { usePaymentAccount, useLinkPaymentAccount, useUnlinkPaymentAccount } from '../hooks/usePaymentAccount.js'
+import { useEffect } from 'react'
+import { usePaymentAccount, useUnlinkPaymentAccount } from '../hooks/usePaymentAccount.js'
 import { Loading, ErrorPanel } from '../components/QueryStates.jsx'
 
-export default function PaymentSetupScreen({ eventId, eventName, onBack, backLabel = '← Volver al panel', hideFooter = false }) {
-  const [token, setToken] = useState('')
+export default function PaymentSetupScreen({
+  eventId, eventName, adminToken,
+  onBack, backLabel = '← Volver al panel',
+  hideFooter = false,
+}) {
   const { data: account, isLoading, isError, refetch } = usePaymentAccount(eventId)
-  const linkMutation   = useLinkPaymentAccount(eventId)
   const unlinkMutation = useUnlinkPaymentAccount(eventId)
+
+  // After the MP OAuth callback the backend redirects to /admin?mp_linked=true.
+  // Detect it, strip the param, and refetch so the LinkedCard appears immediately.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('mp_linked') === 'true') {
+      window.history.replaceState({}, '', window.location.pathname)
+      refetch()
+    }
+    if (params.get('mp_error')) {
+      window.history.replaceState({}, '', window.location.pathname)
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (isLoading) return <Loading label="Cargando configuración…" />
   if (isError)   return <ErrorPanel title="No se pudo cargar" onRetry={refetch} />
@@ -35,13 +50,7 @@ export default function PaymentSetupScreen({ eventId, eventName, onBack, backLab
             loading={unlinkMutation.isPending}
           />
         ) : (
-          <LinkForm
-            token={token}
-            onTokenChange={setToken}
-            onLink={() => linkMutation.mutate(token)}
-            loading={linkMutation.isPending}
-            error={linkMutation.isError ? 'Token inválido o sin acceso a Mercado Pago.' : null}
-          />
+          <OAuthLinkForm eventId={eventId} adminToken={adminToken} />
         )}
       </div>
 
@@ -94,7 +103,15 @@ function LinkedCard({ account, onUnlink, loading }) {
   )
 }
 
-function LinkForm({ token, onTokenChange, onLink, loading, error }) {
+function OAuthLinkForm({ eventId, adminToken }) {
+  function handleConnect() {
+    const params = new URLSearchParams({
+      eventId,
+      token: adminToken ?? '',
+    })
+    window.location.href = `/api/auth/mp/connect?${params}`
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ fontSize: 13, color: 'var(--text-dim)', lineHeight: 1.6 }}>
@@ -104,17 +121,16 @@ function LinkForm({ token, onTokenChange, onLink, loading, error }) {
       <div style={{
         background: 'var(--surface2)', border: '1px solid var(--border)',
         borderRadius: 'var(--radius-sm)', padding: '14px 16px',
-        fontSize: 13, color: 'var(--text-dim)', lineHeight: 1.6,
         display: 'flex', flexDirection: 'column', gap: 12,
+        fontSize: 13, color: 'var(--text-dim)', lineHeight: 1.6,
       }}>
         <div>
-          <div style={{ fontWeight: 700, marginBottom: 6, color: 'var(--text)' }}>Cómo obtener tu token:</div>
+          <div style={{ fontWeight: 700, marginBottom: 6, color: 'var(--text)' }}>Cómo funciona:</div>
           <ol style={{ paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 5 }}>
-            <li>Iniciá sesión en <span style={{ fontFamily: 'monospace', color: 'var(--accent)' }}>mercadopago.com.ar/developers</span></li>
-            <li>Entrá a <strong>Tus aplicaciones</strong> y seleccioná tu app (o creá una si es la primera vez)</li>
-            <li>Abrí la sección <strong>Credenciales de producción</strong></li>
-            <li>Copiá el <strong>Access token</strong> — empieza con <span style={{ fontFamily: 'monospace' }}>APP_USR-</span></li>
-            <li>Pegalo acá abajo</li>
+            <li>Hacé clic en <strong>Conectar con Mercado Pago</strong></li>
+            <li>Iniciá sesión con tu cuenta de Mercado Pago</li>
+            <li>Aprobá el acceso a FastBuy</li>
+            <li>Listo — los pagos del evento se acreditan en tu cuenta</li>
           </ol>
         </div>
         <div style={{
@@ -125,43 +141,12 @@ function LinkForm({ token, onTokenChange, onLink, loading, error }) {
         </div>
       </div>
 
-      <div>
-        <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-mute)', marginBottom: 6, display: 'block' }}>
-          Access token
-        </label>
-        <input
-          type="password"
-          placeholder="APP_USR-…"
-          value={token}
-          onChange={e => onTokenChange(e.target.value)}
-          style={{
-            width: '100%', padding: '13px 14px',
-            background: 'var(--surface2)', border: '1px solid var(--border-strong)',
-            borderRadius: 'var(--radius-sm)', color: 'var(--text)',
-            fontSize: 14, fontFamily: 'monospace', outline: 'none',
-            transition: 'border-color 0.15s',
-          }}
-          onFocus={e => e.target.style.borderColor = 'var(--accent)'}
-          onBlur={e => e.target.style.borderColor = 'var(--border-strong)'}
-        />
-      </div>
-
-      {error && (
-        <div style={{
-          background: 'var(--danger-dim)', border: '1px solid var(--danger)',
-          borderRadius: 'var(--radius-sm)', padding: '10px 14px',
-          fontSize: 13, color: 'var(--danger)',
-        }}>
-          {error}
-        </div>
-      )}
-
       <button
         className="btn-primary"
-        onClick={onLink}
-        disabled={loading || !token.trim()}
+        onClick={handleConnect}
+        style={{ background: 'var(--mp)', color: '#fff' }}
       >
-        {loading ? 'Conectando…' : 'Conectar cuenta'}
+        Conectar con Mercado Pago
       </button>
     </div>
   )
