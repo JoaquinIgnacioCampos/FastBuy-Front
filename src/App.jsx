@@ -11,6 +11,7 @@ import QueueScreen        from './screens/QueueScreen'
 import QRScreen           from './screens/QRScreen'
 import BartenderScreen    from './screens/BartenderScreen'
 import PaymentSetupScreen from './screens/PaymentSetupScreen'
+import AdminScreen        from './screens/AdminScreen'
 import { useBars }                    from './hooks/useBars.js'
 import { useProductMap, resolveProduct } from './hooks/useMenu.js'
 import { useOrderStatus }             from './hooks/useOrderStatus.js'
@@ -625,11 +626,9 @@ export default function App() {
         )}
 
         {screen === 'admin' && (
-          <PaymentSetupScreen
+          <AdminScreen
             eventId={adminSession?.eventId}
             eventName={adminSession?.eventName ?? 'Evento'}
-            onBack={handleAdminLogout}
-            backLabel="← Cambiar rol"
           />
         )}
         </div>{/* screen-fade */}
