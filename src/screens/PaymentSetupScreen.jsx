@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { usePaymentAccount, useUnlinkPaymentAccount } from '../hooks/usePaymentAccount.js'
 import { Loading, ErrorPanel } from '../components/QueryStates.jsx'
 
@@ -9,6 +9,11 @@ export default function PaymentSetupScreen({
 }) {
   const { data: account, isLoading, isError, refetch } = usePaymentAccount(eventId)
   const unlinkMutation = useUnlinkPaymentAccount(eventId)
+
+  const [oauthError, setOauthError] = useState(() => {
+    const p = new URLSearchParams(window.location.search)
+    return p.get('mp_error') ?? null
+  })
 
   // After the MP OAuth callback the backend redirects to /admin?mp_linked=true.
   // Detect it, strip the param, and refetch so the LinkedCard appears immediately.
@@ -42,6 +47,10 @@ export default function PaymentSetupScreen({
           <div style={{ fontSize: 18, fontWeight: 800, marginTop: 4 }}>Configurar pagos</div>
           <div style={{ fontSize: 13, color: 'var(--text-dim)', marginTop: 4 }}>{eventName}</div>
         </div>
+
+        {oauthError && (
+          <OAuthErrorBanner error={oauthError} onDismiss={() => setOauthError(null)} />
+        )}
 
         {linked ? (
           <LinkedCard
@@ -99,6 +108,26 @@ function LinkedCard({ account, onUnlink, loading }) {
       >
         {loading ? 'Desconectando…' : 'Desconectar cuenta'}
       </button>
+    </div>
+  )
+}
+
+const ERROR_MESSAGES = {
+  not_configured: 'El servidor no tiene configuradas las credenciales de OAuth de Mercado Pago (MP_APP_ID / MP_APP_SECRET / MP_REDIRECT_URI). Configurá esas variables de entorno para habilitar la conexión.',
+  access_denied:  'Cancelaste la autorización en Mercado Pago. Podés intentarlo de nuevo cuando quieras.',
+}
+
+function OAuthErrorBanner({ error, onDismiss }) {
+  const msg = ERROR_MESSAGES[error] ?? `Error desconocido: ${error}`
+  return (
+    <div style={{
+      background: 'var(--warn-dim)', border: '1px solid var(--warn)',
+      borderRadius: 'var(--radius-sm)', padding: '12px 14px',
+      display: 'flex', gap: 10, alignItems: 'flex-start',
+    }}>
+      <span style={{ fontSize: 16, flexShrink: 0 }}>⚠️</span>
+      <div style={{ flex: 1, fontSize: 13, color: 'var(--text-dim)', lineHeight: 1.5 }}>{msg}</div>
+      <button onClick={onDismiss} style={{ fontSize: 16, color: 'var(--text-mute)', flexShrink: 0 }}>✕</button>
     </div>
   )
 }
