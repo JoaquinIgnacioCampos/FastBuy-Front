@@ -276,8 +276,9 @@ export default function App() {
         const bar = { id: order.bar, label: order.barLabel ?? order.bar, location: '' }
         setActiveOrder(order)
         setAssignedBar(bar)
+        go('queue')
       })
-      .catch(() => {})
+      .catch(() => go('order-error'))
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   function toggleTheme() { setTheme(t => t === 'dark' ? 'light' : 'dark') }
@@ -293,10 +294,11 @@ export default function App() {
     }
   }
 
-  const pollEnabled = !!activeOrder && (screen === 'queue' || screen === 'preparing' || screen === 'ready' || screen === 'qr')
-  const { data: liveOrder } = useOrderStatus(activeOrder?.id, { enabled: pollEnabled })
+  const pollEnabled = !!activeOrder && ['queue', 'preparing', 'ready', 'qr'].includes(screen)
+  const { data: liveOrder, isError: orderPollError } = useOrderStatus(activeOrder?.id, { enabled: pollEnabled })
 
   useEffect(() => {
+    if (orderPollError && pollEnabled) { go('offline'); return }
     if (!pollEnabled || liveOrder === undefined) return
     if (liveOrder === null) {
       go(screen === 'qr' ? 'confirmed' : 'order-cancelled')
@@ -312,7 +314,7 @@ export default function App() {
     } else if (status === 'queue') {
       if (screen !== 'queue') go('queue')
     }
-  }, [liveOrder, screen, pollEnabled]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [liveOrder, orderPollError, screen, pollEnabled]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Payment processing
   useEffect(() => {
@@ -614,6 +616,25 @@ export default function App() {
               <div style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>Pedido cancelado</div>
               <div style={{ fontSize: 14, color: 'var(--text-dim)', lineHeight: 1.5 }}>
                 La barra canceló tu pedido. Si creés que fue un error, acercate a la barra.
+              </div>
+            </div>
+            <button className="btn-primary" onClick={resetOrder} style={{ width: '100%' }}>
+              Volver al menú
+            </button>
+          </div>
+        )}
+
+        {screen === 'order-error' && (
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 20, padding: 32 }}>
+            <div style={{
+              width: 72, height: 72, borderRadius: '50%',
+              background: 'var(--warn-dim)', border: '2px solid var(--warn)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32,
+            }}>⚠️</div>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>Pedido no registrado</div>
+              <div style={{ fontSize: 14, color: 'var(--text-dim)', lineHeight: 1.5 }}>
+                Tu pago fue aprobado pero no pudimos registrar el pedido. Mostrá el comprobante de pago en la barra para que te lo preparen.
               </div>
             </div>
             <button className="btn-primary" onClick={resetOrder} style={{ width: '100%' }}>

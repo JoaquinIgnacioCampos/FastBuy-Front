@@ -29,7 +29,7 @@ export default function PaymentSetupScreen({
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (isLoading) return <Loading label="Cargando configuración…" />
-  if (isError)   return <ErrorPanel title="No se pudo cargar" onRetry={refetch} />
+  if (isError)   return <ErrorPanel title="No se pudo cargar la configuración de pagos" message="Verificá tu conexión e intentá de nuevo." onRetry={refetch} />
 
   const linked = account?.linked
 
@@ -57,9 +57,10 @@ export default function PaymentSetupScreen({
             account={account}
             onUnlink={() => unlinkMutation.mutate()}
             loading={unlinkMutation.isPending}
+            error={unlinkMutation.isError}
           />
         ) : (
-          <OAuthLinkForm eventId={eventId} adminToken={adminToken} />
+          <OAuthLinkForm eventId={eventId} adminToken={adminToken} onError={setOauthError} />
         )}
       </div>
 
@@ -74,7 +75,7 @@ export default function PaymentSetupScreen({
   )
 }
 
-function LinkedCard({ account, onUnlink, loading }) {
+function LinkedCard({ account, onUnlink, loading, error }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{
@@ -108,13 +109,25 @@ function LinkedCard({ account, onUnlink, loading }) {
       >
         {loading ? 'Desconectando…' : 'Desconectar cuenta'}
       </button>
+
+      {error && (
+        <div style={{
+          background: 'var(--warn-dim)', border: '1px solid var(--warn)',
+          borderRadius: 'var(--radius-sm)', padding: '10px 14px',
+          fontSize: 13, color: 'var(--warn)',
+        }}>
+          No se pudo desconectar la cuenta. Verificá tu conexión e intentá de nuevo.
+        </div>
+      )}
     </div>
   )
 }
 
 const ERROR_MESSAGES = {
-  not_configured: 'El servidor no tiene configuradas las credenciales de OAuth de Mercado Pago (MP_APP_ID / MP_APP_SECRET / MP_REDIRECT_URI). Configurá esas variables de entorno para habilitar la conexión.',
-  access_denied:  'Cancelaste la autorización en Mercado Pago. Podés intentarlo de nuevo cuando quieras.',
+  not_configured:  'El servidor no tiene configuradas las credenciales de OAuth de Mercado Pago (MP_APP_ID / MP_APP_SECRET / MP_REDIRECT_URI). Configurá esas variables de entorno para habilitar la conexión.',
+  access_denied:   'Cancelaste la autorización en Mercado Pago. Podés intentarlo de nuevo cuando quieras.',
+  callback_failed: 'Hubo un error al completar la conexión con Mercado Pago. Revisá los logs del servidor para más detalles e intentalo de nuevo.',
+  session_expired: 'Tu sesión expiró (el servidor fue reiniciado). Cerrá sesión e ingresá de nuevo para continuar.',
 }
 
 function OAuthErrorBanner({ error, onDismiss }) {
@@ -132,13 +145,29 @@ function OAuthErrorBanner({ error, onDismiss }) {
   )
 }
 
-function OAuthLinkForm({ eventId, adminToken }) {
-  function handleConnect() {
-    const params = new URLSearchParams({
-      eventId,
-      token: adminToken ?? '',
-    })
-    window.location.href = `/api/auth/mp/connect?${params}`
+function OAuthLinkForm({ eventId, adminToken, onError }) {
+  const [connecting, setConnecting] = useState(false)
+
+  async function handleConnect() {
+    setConnecting(true)
+    try {
+      const params = new URLSearchParams({ eventId, token: adminToken ?? '' })
+      const res = await fetch(`/api/auth/mp/connect?${params}`)
+      if (res.status === 401) {
+        onError('session_expired')
+        setConnecting(false)
+        return
+      }
+      const data = await res.json()
+      if (data.error) {
+        onError(data.error)
+        setConnecting(false)
+        return
+      }
+      window.location.href = data.url
+    } catch {
+      setConnecting(false)
+    }
   }
 
   return (
@@ -173,9 +202,10 @@ function OAuthLinkForm({ eventId, adminToken }) {
       <button
         className="btn-primary"
         onClick={handleConnect}
+        disabled={connecting}
         style={{ background: 'var(--mp)', color: '#fff' }}
       >
-        Conectar con Mercado Pago
+        {connecting ? 'Redirigiendo…' : 'Conectar con Mercado Pago'}
       </button>
     </div>
   )

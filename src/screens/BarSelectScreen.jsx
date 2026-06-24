@@ -5,7 +5,7 @@ export default function BarSelectScreen({ onSelect }) {
   const { data: bars, isLoading, isError, refetch } = useBars()
 
   if (isLoading) return <Loading label="Cargando barras…" />
-  if (isError)   return <ErrorPanel title="No se pudieron cargar las barras" onRetry={refetch} />
+  if (isError)   return <ErrorPanel title="No se pudieron cargar las barras" message="Verificá tu conexión e intentá de nuevo." onRetry={refetch} />
 
   return (
     <div className="screen-body">

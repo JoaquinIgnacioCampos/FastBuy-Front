@@ -45,8 +45,12 @@ export default function LoginScreen({
     try {
       const session = await mutation.mutateAsync({ username: username.trim(), password })
       onLogin(session)
-    } catch {
-      setError('Credenciales inválidas')
+    } catch (err) {
+      if (err instanceof TypeError) {
+        setError('Sin conexión al servidor. Verificá tu internet e intentá de nuevo.')
+      } else {
+        setError('Usuario o contraseña incorrectos.')
+      }
     }
   }
 

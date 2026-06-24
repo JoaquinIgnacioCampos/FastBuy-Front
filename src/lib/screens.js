@@ -17,6 +17,7 @@ export const SCREEN_TO_PATH = {
   qr:                  '/pickup',
   confirmed:           '/pickup',
   'order-cancelled':   '/cancelled',
+  'order-error':       '/cancelled',
   'bartender-bar':     '/staff/bars',
   bartender:           '/staff',
   'bartender-scanner': '/staff',
@@ -47,7 +48,7 @@ export const TITLES = {
   order:               'Tu pedido',
   payment:             'Mercado Pago',
   paying:              'Procesando pago',
-  rejected:            'Pago rechazado',
+  rejected:            'Pago no completado',
   queue:               'Cola virtual',
   preparing:           'Cola virtual',
   ready:               'Cola virtual',
@@ -55,6 +56,7 @@ export const TITLES = {
   qr:                  'Retirar pedido',
   confirmed:           'Pedido retirado',
   'order-cancelled':   'Pedido cancelado',
+  'order-error':       'Error en el pedido',
   'bartender-bar':     'Seleccionar Barra',
   bartender:           '—',
   'bartender-scanner': '—',
@@ -71,7 +73,7 @@ export const BACK_TARGETS = {
 // Transient checkout screens must never be auto-resumed from persisted state:
 // 'paying' immediately re-fires the payment effect (with a possibly-empty cart,
 // which fails), and 'payment'/'rejected' are mid-flow steps.
-export const TRANSIENT_SCREENS = new Set(['payment', 'paying', 'rejected'])
+export const TRANSIENT_SCREENS = new Set(['payment', 'paying', 'rejected', 'order-error'])
 
 export function pathToScreen(pathname) {
   if (pathname.startsWith('/e/'))          return 'welcome' // QR deep link → event auto-select

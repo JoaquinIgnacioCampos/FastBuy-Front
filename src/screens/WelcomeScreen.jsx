@@ -75,10 +75,11 @@ function EventsList({ events, isLoading, isError, onRetry, onSelect }) {
       <div style={{
         width: '100%', padding: '20px 16px', textAlign: 'center',
         background: 'var(--surface2)', border: '1px solid var(--border)',
-        borderRadius: 'var(--radius-sm)',
+        borderRadius: 'var(--radius-sm)', display: 'flex', flexDirection: 'column', gap: 10,
       }}>
         <div style={{ fontSize: 14, fontWeight: 700 }}>No hay eventos disponibles</div>
-        <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 4 }}>Volvé más tarde.</div>
+        <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>Volvé más tarde.</div>
+        <button className="btn-secondary" style={{ fontSize: 13 }} onClick={onRetry}>Reintentar</button>
       </div>
     )
   }
