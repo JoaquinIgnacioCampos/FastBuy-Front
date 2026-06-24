@@ -223,7 +223,7 @@ export default function BartenderScreen({ scannerPhase, onScannerOpen, onScanner
   function handleQRScan(text) {
     try {
       const data = JSON.parse(text)
-      const matched = myReady.find(o => o.id === data.id) ?? myReady[0] ?? null
+      const matched = myReady.find(o => o.id === data.id) ?? null
       const itemsMatch = matched ? itemsAreEqual(data.items ?? [], matched.items) : null
       setScannedOrder({
         id: data.id,
@@ -233,7 +233,7 @@ export default function BartenderScreen({ scannerPhase, onScannerOpen, onScanner
         itemsMatch,
       })
     } catch {
-      setScannedOrder({ raw: text, matched: myReady[0] ?? null, itemsMatch: null })
+      setScannedOrder({ raw: text, matched: null, itemsMatch: null })
     }
   }
 
@@ -313,7 +313,20 @@ export default function BartenderScreen({ scannerPhase, onScannerOpen, onScanner
               </div>
             )}
 
-            {scannedOrder.itemsMatch === null && (
+            {!scannedOrder.matched && (
+              <div style={{
+                background: 'var(--danger-dim)', border: '1px solid var(--danger)',
+                borderRadius: 'var(--radius-sm)', padding: '12px 16px',
+                display: 'flex', alignItems: 'center', gap: 10,
+              }}>
+                <span style={{ fontSize: 20 }}>❌</span>
+                <span style={{ fontSize: 14, color: 'var(--danger)', fontWeight: 700 }}>
+                  Pedido no encontrado — este QR no corresponde a ningún pedido listo
+                </span>
+              </div>
+            )}
+
+            {scannedOrder.itemsMatch === null && scannedOrder.matched && (
               <div style={{
                 background: 'var(--accent-dim)', border: '1px solid var(--accent)',
                 borderRadius: 'var(--radius-sm)', padding: '12px 16px',
@@ -371,7 +384,7 @@ export default function BartenderScreen({ scannerPhase, onScannerOpen, onScanner
                 {deliveryError}
               </div>
             )}
-            <button className="btn-primary" onClick={handleConfirmDelivery} disabled={deliverMutation.isPending || scannedOrder.itemsMatch === false}>
+            <button className="btn-primary" onClick={handleConfirmDelivery} disabled={deliverMutation.isPending || !scannedOrder.matched || scannedOrder.itemsMatch === false}>
               {deliverMutation.isPending ? 'Confirmando…' : 'Confirmar entrega ✓'}
             </button>
             <button className="btn-secondary" onClick={handleCancelScan}>
