@@ -13,7 +13,6 @@ import BartenderScreen    from './screens/BartenderScreen'
 import BarSelectScreen    from './screens/BarSelectScreen'
 import PaymentSetupScreen from './screens/PaymentSetupScreen'
 import AdminScreen        from './screens/AdminScreen'
-import { useBars }                    from './hooks/useBars.js'
 import { useEvents }                  from './hooks/useEvents.js'
 import { useProductMap, resolveProduct } from './hooks/useMenu.js'
 import { useOrderStatus }             from './hooks/useOrderStatus.js'
@@ -229,7 +228,6 @@ export default function App() {
   const [activeOrder, setActiveOrder]   = useState(() => loadPersisted(PERSIST_ORDER))
   const [selectedEvent, setSelectedEvent] = useState(() => loadPersisted(PERSIST_EVENT))
 
-  const { data: bars = [] } = useBars()
   const productMap = useProductMap()
   const healthStatus = useBackendHealth()
 
@@ -336,7 +334,7 @@ export default function App() {
         if (pref?.simulated || !pref?.initPoint) {
           const order = await createOrder(items, undefined, total, selectedEvent?.id)
           if (cancelled) return
-          const bar = bars.find(b => b.id === order.bar) ?? { id: order.bar, label: order.barLabel ?? order.bar, location: '' }
+          const bar = { id: order.bar, label: order.barLabel ?? order.bar, location: '' }
           clearPending()
           setAssignedBar(bar)
           setActiveOrder(order)
