@@ -50,7 +50,7 @@ export default function PaymentScreen({ cart, phase, event, onSuccess, onRetry, 
             </div>
             <div>
               <div style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>Mercado Pago</div>
-              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.75)' }}>Billetera virtual · joaquin.ig.campos@gmail.com</div>
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.75)' }}>Billetera virtual</div>
             </div>
           </div>
 
