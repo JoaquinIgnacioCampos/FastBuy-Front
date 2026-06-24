@@ -371,7 +371,7 @@ export default function BartenderScreen({ scannerPhase, onScannerOpen, onScanner
                 {deliveryError}
               </div>
             )}
-            <button className="btn-primary" onClick={handleConfirmDelivery} disabled={deliverMutation.isPending}>
+            <button className="btn-primary" onClick={handleConfirmDelivery} disabled={deliverMutation.isPending || scannedOrder.itemsMatch === false}>
               {deliverMutation.isPending ? 'Confirmando…' : 'Confirmar entrega ✓'}
             </button>
             <button className="btn-secondary" onClick={handleCancelScan}>
