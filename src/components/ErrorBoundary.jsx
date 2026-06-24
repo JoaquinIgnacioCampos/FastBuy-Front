@@ -32,7 +32,9 @@ export default class ErrorBoundary extends Component {
               Algo salió mal
             </div>
             <div style={{ fontSize: 13, color: 'var(--text-dim)', lineHeight: 1.5 }}>
-              {this.state.error?.message ?? 'Error inesperado en la aplicación.'}
+              {import.meta.env.DEV
+                ? (this.state.error?.message ?? 'Error inesperado.')
+                : 'Ocurrió un error inesperado. Tocá Reintentar para continuar.'}
             </div>
           </div>
           <button

@@ -16,8 +16,8 @@ export function Loading({ label = 'Cargando…' }) {
 }
 
 export function ErrorPanel({
-  title = 'Sin conexión al servidor',
-  message = 'No se pudo conectar con el servidor. Verificá que el backend esté corriendo.',
+  title = 'Sin conexión',
+  message = 'No pudimos conectar con el servidor. Verificá tu internet y tocá Reintentar.',
   onRetry,
 }) {
   return (

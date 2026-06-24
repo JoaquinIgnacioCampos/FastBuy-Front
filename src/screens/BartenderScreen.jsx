@@ -180,6 +180,8 @@ function QRCameraScanner({ onScan }) {
 export default function BartenderScreen({ scannerPhase, onScannerOpen, onScannerClose, bartenderBar }) {
   const [tab, setTab] = useState('queue')
   const [scannedOrder, setScannedOrder] = useState(null)
+  const [deliveryError, setDeliveryError] = useState(null)
+  const [mutationError, setMutationError] = useState(null)
   const productMap = useProductMap()
   const resolveItem = makeResolver(productMap)
 
@@ -235,14 +237,24 @@ export default function BartenderScreen({ scannerPhase, onScannerOpen, onScanner
     }
   }
 
+  function showMutationError(msg) {
+    setMutationError(msg)
+    setTimeout(() => setMutationError(null), 5000)
+  }
+
   async function handleConfirmDelivery() {
-    if (scannedOrder?.matched) {
-      try {
-        await deliverMutation.mutateAsync(scannedOrder.matched.id)
-      } catch { /* mutation error surfaces via ordersQuery on next refetch */ }
+    if (!scannedOrder?.matched) {
+      setScannedOrder(null)
+      onScannerClose()
+      return
     }
-    setScannedOrder(null)
-    onScannerClose()
+    try {
+      await deliverMutation.mutateAsync(scannedOrder.matched.id)
+      setScannedOrder(null)
+      onScannerClose()
+    } catch {
+      setDeliveryError('No se pudo confirmar la entrega. Intentá de nuevo.')
+    }
   }
 
   function handleCancelScan() {
@@ -350,8 +362,17 @@ export default function BartenderScreen({ scannerPhase, onScannerOpen, onScanner
               </div>
             </div>
 
-            <button className="btn-primary" onClick={handleConfirmDelivery}>
-              Confirmar entrega ✓
+            {deliveryError && (
+              <div style={{
+                background: 'var(--danger-dim)', border: '1px solid var(--danger)',
+                borderRadius: 'var(--radius-sm)', padding: '10px 14px',
+                fontSize: 13, color: 'var(--danger)', fontWeight: 600,
+              }}>
+                {deliveryError}
+              </div>
+            )}
+            <button className="btn-primary" onClick={handleConfirmDelivery} disabled={deliverMutation.isPending}>
+              {deliverMutation.isPending ? 'Confirmando…' : 'Confirmar entrega ✓'}
             </button>
             <button className="btn-secondary" onClick={handleCancelScan}>
               Cancelar
@@ -381,8 +402,8 @@ export default function BartenderScreen({ scannerPhase, onScannerOpen, onScanner
   if (ordersQuery.isError) {
     return (
       <ErrorPanel
-        title="Sin conexión al servidor"
-        message="No se pudo conectar con el servidor. Verificá que el backend esté corriendo."
+        title="Sin conexión"
+        message="No pudimos cargar los pedidos. Verificá tu conexión a internet y tocá Reintentar."
         onRetry={ordersQuery.refetch}
       />
     )
@@ -390,6 +411,16 @@ export default function BartenderScreen({ scannerPhase, onScannerOpen, onScanner
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      {mutationError && (
+        <div style={{
+          margin: '8px 16px 0', padding: '9px 14px',
+          background: 'var(--danger-dim)', border: '1px solid var(--danger)',
+          borderRadius: 'var(--radius-sm)',
+          fontSize: 13, color: 'var(--danger)', fontWeight: 600,
+        }}>
+          {mutationError}
+        </div>
+      )}
       {/* Tabs */}
       <div style={{ display: 'flex', borderBottom: '1px solid var(--border)' }}>
         {[
@@ -440,7 +471,9 @@ export default function BartenderScreen({ scannerPhase, onScannerOpen, onScanner
                       order={order}
                       onAction={onScannerOpen}
                       actionLabel="Escanear QR 📷"
-                      onCancel={() => cancelMutation.mutate(order.id)}
+                      onCancel={() => cancelMutation.mutate(order.id, {
+                        onError: () => showMutationError('No se pudo cancelar el pedido. Intentá de nuevo.'),
+                      })}
                       cancelLabel="Cancelar (no-show)"
                     />
                   ))}
@@ -455,10 +488,15 @@ export default function BartenderScreen({ scannerPhase, onScannerOpen, onScanner
                     <BartenderCard
                       key={order.id}
                       order={order}
-                      onAction={() => advanceMutation.mutate({ id: order.id, bartenderId: myUsername })}
+                      onAction={() => advanceMutation.mutate(
+                        { id: order.id, bartenderId: myUsername },
+                        { onError: () => showMutationError('No se pudo marcar como listo. Intentá de nuevo.') },
+                      )}
                       actionLabel="Marcar listo"
                       actionColor="var(--warn)"
-                      onRelease={() => releaseMutation.mutate(order.id)}
+                      onRelease={() => releaseMutation.mutate(order.id, {
+                        onError: () => showMutationError('No se pudo liberar el pedido. Intentá de nuevo.'),
+                      })}
                     />
                   ))}
                 </>
@@ -483,7 +521,10 @@ export default function BartenderScreen({ scannerPhase, onScannerOpen, onScanner
                 <BartenderCard
                   key={order.id}
                   order={order}
-                  onAction={(!isBusy && idx === 0) ? () => advanceMutation.mutate({ id: order.id, bartenderId: myUsername }) : undefined}
+                  onAction={(!isBusy && idx === 0) ? () => advanceMutation.mutate(
+                    { id: order.id, bartenderId: myUsername },
+                    { onError: () => showMutationError('No se pudo tomar el pedido. Intentá de nuevo.') },
+                  ) : undefined}
                   actionLabel="Comenzar a preparar"
                   actionColor="var(--accent)"
                   disabledAction={isBusy || idx > 0}
@@ -507,7 +548,13 @@ export default function BartenderScreen({ scannerPhase, onScannerOpen, onScanner
         )}
 
         {tab === 'delivered' && (
-          delivered.length === 0 ? (
+          deliveredQuery.isError ? (
+            <ErrorPanel
+              title="No se pudieron cargar los entregados"
+              message="Verificá tu conexión e intentá de nuevo."
+              onRetry={deliveredQuery.refetch}
+            />
+          ) : delivered.length === 0 ? (
             <div className="empty-state">
               <div className="empty-icon">✅</div>
               <h3>Sin entregados</h3>

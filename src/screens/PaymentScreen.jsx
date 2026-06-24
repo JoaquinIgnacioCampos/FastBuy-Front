@@ -174,9 +174,9 @@ export default function PaymentScreen({ cart, phase, event, onSuccess, onRetry, 
           fontSize: 32,
         }}>✕</div>
         <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>Pago rechazado</div>
+          <div style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>Pago no completado</div>
           <div style={{ fontSize: 14, color: 'var(--text-dim)', lineHeight: 1.5 }}>
-            No pudimos procesar el pago. Verificá tu saldo o intentá con otra tarjeta.
+            El pago no se realizó. Podés volver a intentarlo o revisar tu pedido.
           </div>
         </div>
         <div style={{ padding: '12px 20px', width: '100%', display: 'flex', flexDirection: 'column', gap: 10 }}>
