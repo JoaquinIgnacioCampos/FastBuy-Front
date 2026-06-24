@@ -16,7 +16,7 @@ import { useEvents }                  from './hooks/useEvents.js'
 import { useProductMap, resolveProduct } from './hooks/useMenu.js'
 import { useOrderStatus }             from './hooks/useOrderStatus.js'
 import { useBackendHealth }           from './hooks/useBackendHealth.js'
-import { createOrder, createPaymentPreference, loginBartender, loginAdmin } from './services/api'
+import { createOrder, createPaymentPreference } from './services/api'
 import { useScreen } from './hooks/useScreen.js'
 import { loadPersisted, savePersisted, clearPersisted,
          PERSIST_SCREEN, PERSIST_CART, PERSIST_EVENT, PERSIST_ORDER, PERSIST_BAR } from './lib/persist.js'
@@ -29,29 +29,6 @@ const BARTENDER_SESSION_KEY = 'fb_bartender_session'
 const BARTENDER_BAR_KEY     = 'fb_bartender_bar'
 const ADMIN_SESSION_KEY     = 'fb_admin_session'
 const ROLE_KEY              = 'fb_role'
-
-// DEV ONLY (develop branch — stripped on production):
-// the "Vista bartender" picker auto-logs-in with seed credentials.
-const DEV_BARTENDER_PASSWORDS = {
-  'eclipse-north':  'norte123',
-  'eclipse-center': 'centro123',
-  'eclipse-south':  'sur123',
-  'cumbia-main':    'principal123',
-  'cumbia-vip':     'vip123',
-}
-
-// DEV ONLY: admin dev shortcut events (seeded via DataInitializer).
-const DEV_ADMIN_CREDS = {
-  'e1': { username: 'admin-eclipse', password: 'eclipse2025' },
-  'e2': { username: 'admin-cumbia',  password: 'cumbia2025'  },
-  'e3': { username: 'admin-cosquin', password: 'cosquin2025' },
-  'e5': { username: 'admin-lolla',   password: 'lolla2025'   },
-}
-const DEV_ADMIN_SHORTCUTS = [
-  { id: 'e1', label: '🌕 Eclipse (dev)'  },
-  { id: 'e2', label: '🎺 Cumbia (dev)'   },
-  { id: 'e3', label: '🎸 Cosquín (dev)'  },
-]
 
 // ── localStorage helpers ──────────────────────────────────────────────────────
 
@@ -119,7 +96,7 @@ function computeInitialScreen() {
 
   if (role === 'bartender') {
     const saved = loadPersisted(PERSIST_SCREEN)
-    const bartenderScreens = new Set(['bartender', 'bartender-scanner', 'bartender-bar', 'login'])
+    const bartenderScreens = new Set(['bartender', 'bartender-scanner', 'login'])
     if (saved && bartenderScreens.has(saved)) return saved
     const s = parseLocalStorage(BARTENDER_SESSION_KEY)
     return s ? 'bartender' : 'login'
@@ -367,36 +344,10 @@ export default function App() {
     go('bartender', { barId: session.barId })
   }
 
-  async function handleDevBartenderSelect(bar) {
-    const password = DEV_BARTENDER_PASSWORDS[bar.id]
-    if (password) {
-      try {
-        const session = await loginBartender(bar.id, password)
-        handleBartenderLogin(session)
-        return
-      } catch {
-        // fall through to unauthenticated view
-      }
-    }
-    setBartenderBar(bar)
-    go('bartender', { barId: bar.id })
-  }
-
   function handleAdminLogin(session) {
     saveAdminSession(session)
     setAdminSession(session)
     go('admin')
-  }
-
-  async function handleDevAdminSelect(eventId) {
-    const creds = DEV_ADMIN_CREDS[eventId]
-    if (!creds) return
-    try {
-      const session = await loginAdmin(creds.username, creds.password)
-      handleAdminLogin(session)
-    } catch {
-      // backend down — silently ignore
-    }
   }
 
   function handleLogout() {
@@ -437,7 +388,7 @@ export default function App() {
   // Scope class covers the role-specific color theme. Wraps NavBar + screen body
   // so --accent resolves to the role color everywhere inside.
   const scopeClass =
-    ['login', 'bartender-bar', 'bartender', 'bartender-scanner', 'payment-setup'].includes(screen)
+    ['login', 'bartender', 'bartender-scanner', 'payment-setup'].includes(screen)
       ? 'bartender-scope'
       : ['admin-login', 'admin'].includes(screen)
         ? 'admin-scope'
@@ -531,7 +482,6 @@ export default function App() {
             role="bartender"
             onLogin={handleBartenderLogin}
             onChangeRole={handleUserLogout}
-            onBartenderPicker={() => go('bartender-bar')}
           />
         )}
 
@@ -540,8 +490,6 @@ export default function App() {
             role="admin"
             onLogin={handleAdminLogin}
             onChangeRole={() => { clearRole(); go('role-picker') }}
-            devShortcuts={DEV_ADMIN_SHORTCUTS}
-            onDevShortcut={handleDevAdminSelect}
           />
         )}
 
@@ -639,11 +587,6 @@ export default function App() {
             </button>
           </div>
         )}
-
-        {screen === 'bartender-bar' && (
-          <BarSelectScreen onSelect={handleDevBartenderSelect} />
-        )}
-
 
         {(screen === 'bartender' || screen === 'bartender-scanner') && (
           <BartenderScreen

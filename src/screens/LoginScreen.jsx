@@ -7,24 +7,10 @@ const ROLE_LABELS = {
   admin:     { title: 'Organizador',  submit: 'Entrar como organizador', role: 'admin'     },
 }
 
-/**
- * Shared login form for bartender and admin roles.
- *
- * Props:
- *   role           – 'bartender' | 'admin'
- *   onLogin        – called with the session object on success
- *   onChangeRole   – navigates back to the role picker
- *   onBartenderPicker – (bartender role only) opens the dev bar-select screen
- *   devShortcuts   – (admin role only) [{ id, label }] for dev quick-login buttons
- *   onDevShortcut  – (admin role only) called with shortcut id
- */
 export default function LoginScreen({
   role = 'bartender',
   onLogin,
   onChangeRole,
-  onBartenderPicker,
-  devShortcuts,
-  onDevShortcut,
 }) {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -150,53 +136,6 @@ export default function LoginScreen({
         )}
       </form>
 
-      {/* Dev shortcuts */}
-      <div style={{
-        width: '100%', paddingTop: 16,
-        borderTop: '1px dashed var(--border)',
-        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
-      }}>
-        <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-mute)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-          Dev / testing
-        </div>
-
-        {role === 'bartender' && onBartenderPicker && (
-          <button
-            type="button"
-            onClick={onBartenderPicker}
-            className="tap-press"
-            style={{
-              fontSize: 13, fontWeight: 600, color: 'var(--text)',
-              padding: '10px 18px', borderRadius: 99,
-              border: '1px solid var(--border-strong)',
-              background: 'var(--surface2)',
-            }}
-          >
-            Vista bartender 🍹
-          </button>
-        )}
-
-        {role === 'admin' && devShortcuts?.length > 0 && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}>
-            {devShortcuts.map(s => (
-              <button
-                key={s.id}
-                type="button"
-                onClick={() => onDevShortcut?.(s.id)}
-                className="tap-press"
-                style={{
-                  fontSize: 12, fontWeight: 600, color: 'var(--text)',
-                  padding: '8px 14px', borderRadius: 99,
-                  border: '1px solid var(--border-strong)',
-                  background: 'var(--surface2)',
-                }}
-              >
-                {s.label}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
     </div>
   )
 }
