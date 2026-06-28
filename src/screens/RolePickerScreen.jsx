@@ -46,6 +46,49 @@ export default function RolePickerScreen({ onRole }) {
           <RoleCard key={r.id} role={r} primary={i === 0} onSelect={onRole} />
         ))}
       </div>
+
+      {/* Contact CTA for prospective organizers */}
+      <div style={{
+        width: '100%', paddingTop: 20,
+        borderTop: '1px solid var(--border)',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10,
+      }}>
+        <div style={{ fontSize: 12, color: 'var(--text-mute)', textAlign: 'center' }}>
+          ¿Querés usar FastBuy en tu evento?
+        </div>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <a
+            href="https://mail.google.com/mail/?view=cm&to=joaquin.ig.campos@gmail.com&su=Quiero usar FastBuy en mi evento&body=Hola!%0A%0AMe interesa usar FastBuy para gestionar pedidos en mi evento.%0AMe gustaría saber más sobre cómo funciona y qué necesito para empezar.%0A%0AQuedo a disposición para coordinar.%0A%0ASaludos!"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              fontSize: 13, fontWeight: 600, color: 'var(--text-dim)',
+              padding: '8px 14px', borderRadius: 99,
+              border: '1px solid var(--border)',
+              background: 'var(--surface2)',
+              textDecoration: 'none',
+            }}
+          >
+            ✉️ Email
+          </a>
+          <a
+            href="https://wa.me/5491140607570?text=Hola! Me interesa usar FastBuy para gestionar pedidos en mi evento. Me gustaría saber más sobre cómo funciona y qué necesito para empezar. Quedo a disposición para coordinar. Saludos!"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              fontSize: 13, fontWeight: 600, color: 'var(--text-dim)',
+              padding: '8px 14px', borderRadius: 99,
+              border: '1px solid var(--border)',
+              background: 'var(--surface2)',
+              textDecoration: 'none',
+            }}
+          >
+            💬 WhatsApp
+          </a>
+        </div>
+      </div>
     </div>
   )
 }
