@@ -1,102 +1,101 @@
 # FastBuy — Frontend
 
-React 19 + Vite SPA for FastBuy, an event-based beverage ordering system. Customers pick an event, browse the menu, pay via Mercado Pago, and join a virtual queue. Bartenders manage that queue from a staff view. Event organizers configure per-event payment credentials from an admin view.
+SPA en React 19 + Vite para FastBuy, un sistema de pedidos de bebidas para eventos. Los clientes eligen un evento, navegan el menú, pagan con Mercado Pago y se unen a una cola virtual. Los bartenders gestionan la cola desde una vista de staff. Los organizadores configuran las credenciales de pago por evento desde una vista de administrador.
 
-- **Backend repo:** [FastBuy-Back](https://github.com/JoaquinIgnacioCampos/FastBuy-Back)
-- **Prod URL:** hosted on Cloudflare Pages
+- **Repo del backend:** [FastBuy-Back](https://github.com/JoaquinIgnacioCampos/FastBuy-Back)
+- **URL de producción:** alojado en Cloudflare Pages
 
 ---
 
-## Tech stack
+## Stack tecnológico
 
-| Layer | Tech |
-|-------|------|
+| Capa | Tecnología |
+|------|-----------|
 | Framework | React 19 |
 | Build tool | Vite 8 |
-| Data fetching | TanStack Query v5 |
-| Routing | React Router v6 (hash-less) |
-| Styling | CSS custom properties (dark/light theme) |
+| Fetching de datos | TanStack Query v5 |
+| Routing | React Router v6 (sin hash) |
+| Estilos | CSS custom properties (tema oscuro/claro) |
 
 ---
 
-## Project structure
+## Estructura del proyecto
 
 ```
 src/
-├── App.jsx               # Root component: role state machine, session management
-├── screens/              # One file per screen
-│   ├── RolePickerScreen  # Initial screen — choose role
-│   ├── LoginScreen       # Shared login form (bartender or admin)
-│   ├── WelcomeScreen     # Event list (customer flow)
-│   ├── MenuScreen        # Product menu + cart
-│   ├── OrderScreen       # Cart review
-│   ├── PaymentScreen     # Mercado Pago trigger
-│   ├── QueueScreen       # Queue / preparing / ready status
-│   ├── QRScreen          # Pickup QR code
-│   ├── BartenderScreen   # Order queue management
-│   ├── BarSelectScreen   # Dev bar picker
-│   └── PaymentSetupScreen# MP seller token config (bartender access + admin main view)
-├── hooks/                # TanStack Query wrappers + custom hooks
-├── services/api.js       # All fetch calls (single BASE = '/api')
+├── App.jsx               # Componente raíz: máquina de estados de roles, manejo de sesión
+├── screens/              # Un archivo por pantalla
+│   ├── RolePickerScreen  # Pantalla inicial — elegir rol
+│   ├── LoginScreen       # Formulario de login compartido (bartender u organizador)
+│   ├── WelcomeScreen     # Lista de eventos (flujo cliente)
+│   ├── MenuScreen        # Menú de productos + carrito
+│   ├── OrderScreen       # Revisión del carrito
+│   ├── PaymentScreen     # Trigger de Mercado Pago
+│   ├── QueueScreen       # Estado de cola / preparando / listo
+│   ├── QRScreen          # Código QR para retiro
+│   ├── BartenderScreen   # Gestión de la cola de pedidos
+│   └── PaymentSetupScreen# Config del token de vendedor MP (acceso bartender + vista principal admin)
+├── hooks/                # Wrappers de TanStack Query + hooks personalizados
+├── services/api.js       # Todas las llamadas fetch (BASE = '/api')
 ├── lib/
-│   ├── screens.js        # Route ↔ screen maps, TITLES, BACK_TARGETS
-│   ├── persist.js        # localStorage helpers for customer state
-│   └── format.js         # Date/time formatters
-└── components/           # Shared UI: ErrorBoundary, QueryStates, ProductImage
+│   ├── screens.js        # Mapas ruta ↔ pantalla, TITLES, BACK_TARGETS
+│   ├── persist.js        # Helpers de localStorage para el estado del cliente
+│   └── format.js         # Formateadores de fechas y horas
+└── components/           # UI compartida: ErrorBoundary, QueryStates, ProductImage
 ```
 
 ---
 
-## Running locally
+## Ejecución local
 
-Requires the backend running on `:8080`. Use the launcher script:
+Requiere el backend corriendo en `:8080`. Usar el script de inicio:
 
 ```powershell
 .\start-fastbuy.ps1
 ```
 
-This starts the Spring Boot backend (`:8080`), Vite dev server (`:5173`), and an ngrok tunnel on the static domain `crepe-phonics-slogan.ngrok-free.dev`. ngrok is required so Mercado Pago's `auto_return` redirect can reach a public HTTPS URL.
+Esto inicia el backend de Spring Boot (`:8080`), el servidor de desarrollo de Vite (`:5173`) y un túnel ngrok en el dominio estático `crepe-phonics-slogan.ngrok-free.dev`. ngrok es necesario para que el `auto_return` de Mercado Pago pueda redirigir a una URL HTTPS pública.
 
-To run Vite alone (no backend):
+Para correr solo Vite (sin backend):
 
 ```bash
 npm install
 npm run dev
 ```
 
-Vite proxies `/api/*` → `http://localhost:8080/*`, so all API calls are relative and work through ngrok without CORS issues.
+Vite proxea `/api/*` → `http://localhost:8080/*`, por lo que todas las llamadas a la API son relativas y funcionan a través de ngrok sin problemas de CORS.
 
 ---
 
-## Role system
+## Sistema de roles
 
-The app starts at the **role picker** screen (`/`). The chosen role is persisted in `localStorage` (`fb_role`) so reopening lands on the right entry view. Any logout or "Cambiar rol" clears `fb_role` and returns to the picker.
+La app arranca en la pantalla del **selector de rol** (`/`). El rol elegido se persiste en `localStorage` (`fb_role`) para que al reabrir la app se llegue a la vista correcta. Cualquier cierre de sesión o "Cambiar rol" limpia `fb_role` y vuelve al selector.
 
-### Usuario (customer)
-Entry: tap **"Entrar al evento"** → event list → menu → payment → queue.
+### Usuario (cliente)
+Entrada: tocar **"Entrar al evento"** → lista de eventos → menú → pago → cola.
 
-State persisted across page closes: cart, active order, selected event, assigned bar (`fb_cart`, `fb_order`, `fb_event`, `fb_bar`). Transient checkout screens (`payment`, `paying`, `rejected`) are never auto-resumed.
+Estado persistido al cerrar la app: carrito, pedido activo, evento seleccionado, barra asignada (`fb_cart`, `fb_order`, `fb_event`, `fb_bar`). Las pantallas de checkout transitorias (`payment`, `paying`, `rejected`) nunca se reanudan automáticamente.
 
 ### Bartender
-Entry: tap **"Soy bartender"** → login form at `/login` → bartender queue view at `/staff/:barId`.
+Entrada: tocar **"Soy bartender"** → formulario de login en `/login` → vista de cola de bartender en `/staff/:barId`.
 
-Session stored in `fb_bartender_session` (includes bearer token). Auth-gated write endpoints (`advance`, `deliver`, `cancel`, `release`) require `Authorization: Bearer <token>`.
+Sesión guardada en `fb_bartender_session` (incluye el token de portador). Los endpoints de escritura autenticados (`advance`, `deliver`, `cancel`, `release`) requieren `Authorization: Bearer <token>`.
 
 ### Organizador (admin)
-Entry: tap **"Soy organizador"** → login form at `/admin/login` → admin view at `/admin`.
+Entrada: tocar **"Soy organizador"** → formulario de login en `/admin/login` → vista de admin en `/admin`.
 
-Session stored in `fb_admin_session` (includes bearer token). The admin view shows the Mercado Pago seller token configuration for their event. Payment-account writes (`POST`/`DELETE`) require `Authorization: Bearer <token>`.
+Sesión guardada en `fb_admin_session` (incluye el token de portador). La vista de admin muestra la configuración del token de vendedor de Mercado Pago para su evento. Las escrituras de cuenta de pago (`POST`/`DELETE`) requieren `Authorization: Bearer <token>`.
 
 ---
 
-## Dev credentials
+## Credenciales de desarrollo
 
 ### Bartenders
 
-Use the **"Vista bartender 🍹"** shortcut on the bartender login screen. It opens a bar picker that auto-authenticates using these seed credentials:
+Usar el acceso rápido **"Vista bartender 🍹"** en la pantalla de login de bartender. Abre un selector de barra que se autentica automáticamente con estas credenciales seed:
 
-| Username | Password | Bar |
-|----------|----------|-----|
+| Usuario | Contraseña | Barra |
+|---------|-----------|-------|
 | `eclipse-north` | `norte123` | Barra Norte (Festival Eclipse) |
 | `eclipse-center` | `centro123` | Barra Central (Festival Eclipse) |
 | `eclipse-south` | `sur123` | Barra Sur VIP (Festival Eclipse) |
@@ -105,40 +104,40 @@ Use the **"Vista bartender 🍹"** shortcut on the bartender login screen. It op
 
 ### Admins (Organizadores)
 
-Use the quick-access buttons on the admin login screen (dev section):
+Usar los botones de acceso rápido en la pantalla de login de admin (sección dev):
 
-| Button | Username | Password | Event |
-|--------|----------|----------|-------|
+| Botón | Usuario | Contraseña | Evento |
+|-------|---------|-----------|--------|
 | 🌕 Eclipse (dev) | `admin-eclipse` | `eclipse2025` | Festival Eclipse (e1) |
 | 🎺 Cumbia (dev) | `admin-cumbia` | `cumbia2025` | Festival Cumbiero (e2) |
 | 🎸 Cosquín (dev) | `admin-cosquin` | `cosquin2025` | Cosquín Rock (e3) |
 
-There is also a seeded admin for Lollapalooza 2027 (`admin-lolla` / `lolla2025` / e5), accessible by typing credentials manually.
+También hay un admin seed para Lollapalooza 2027 (`admin-lolla` / `lolla2025` / e5), accesible ingresando las credenciales manualmente.
 
 ---
 
-## Screen flow
+## Flujo de pantallas
 
 ```
 role-picker
-├── usuario  → welcome (event list)
-│              └── menu → order → payment → paying → queue → [preparing → ready] → qr → confirmed
+├── usuario   → welcome (lista de eventos)
+│               └── menu → order → payment → paying → queue → [preparing → ready] → qr → confirmed
 ├── bartender → login (/login) → bartender (/staff/:barId)
 │                                 └── payment-setup (/staff/setup)
 └── admin     → admin-login (/admin/login) → admin (/admin)
 ```
 
-The customer flow also handles:
-- `order-cancelled` — bartender triggered a no-show cancel
-- `offline` — backend unreachable on queue screen
-- MP payment return: `?status=approved` restores order from `fb_pending_payment`
+El flujo de cliente también maneja:
+- `order-cancelled` — el bartender canceló por no-show
+- `offline` — backend inaccesible en la pantalla de cola
+- Retorno de pago MP: `?status=approved` restaura el pedido desde `fb_pending_payment`
 
 ---
 
-## Configuration
+## Configuración
 
-All API calls use `BASE = '/api'` (hardcoded). Vite's dev proxy rewrites `/api/*` → `http://localhost:8080/*`.
+Todas las llamadas a la API usan `BASE = '/api'` (hardcodeado). El proxy de desarrollo de Vite reescribe `/api/*` → `http://localhost:8080/*`.
 
-For local MP payments to work (real redirect + auto_return), ngrok must be running so Mercado Pago has a public HTTPS URL to return to. The ngrok domain is `crepe-phonics-slogan.ngrok-free.dev`.
+Para que los pagos MP funcionen localmente (redirección real + auto_return), ngrok debe estar corriendo para que Mercado Pago tenga una URL HTTPS pública a la cual redirigir. El dominio de ngrok es `crepe-phonics-slogan.ngrok-free.dev`.
 
-No `.env` file is needed for local dev.
+No se necesita ningún archivo `.env` para desarrollo local.
