@@ -23,7 +23,10 @@ export default function MenuScreen({ cart, onCartChange, onCheckout, event }) {
       .filter(p => p.category === activeCategory)
       // Dev-only MP test product floats to the top for quick payment testing.
       // (It only exists in the dev seed, so this is a no-op in production.)
-      .sort((a, b) => (a.id === 'p_test' ? -1 : b.id === 'p_test' ? 1 : 0)),
+      .sort((a, b) => {
+        const rank = id => id === 'p_test' ? 0 : id === 'p_test_low' ? 1 : id === 'p_test_oos' ? 2 : 3
+        return rank(a.id) - rank(b.id)
+      }),
     [menu.data, activeCategory]
   )
 
@@ -33,9 +36,9 @@ export default function MenuScreen({ cart, onCartChange, onCheckout, event }) {
     [menu.data, cart]
   )
 
-  function setQty(id, delta) {
+  function setQty(id, delta, stock) {
     const cur = cart[id] || 0
-    const next = Math.max(0, cur + delta)
+    const next = Math.min(stock, Math.max(0, cur + delta))
     onCartChange({ ...cart, [id]: next })
   }
 
@@ -84,6 +87,7 @@ export default function MenuScreen({ cart, onCartChange, onCheckout, event }) {
         {items.map(p => {
           const qty = cart[p.id] || 0
           const oos = p.stock === 0
+          const atMax = qty >= p.stock
           const lowStock = p.stock > 0 && p.stock <= 5
           return (
             <div key={p.id} className={`product-card${oos ? ' out-of-stock' : ''}`}>
@@ -103,7 +107,7 @@ export default function MenuScreen({ cart, onCartChange, onCheckout, event }) {
                 {!oos && (
                   qty === 0 ? (
                     <button
-                      onClick={() => setQty(p.id, 1)}
+                      onClick={() => setQty(p.id, 1, p.stock)}
                       style={{
                         width: 32, height: 32, borderRadius: '50%',
                         background: 'var(--accent)', color: 'var(--accent-on)',
@@ -113,9 +117,9 @@ export default function MenuScreen({ cart, onCartChange, onCheckout, event }) {
                     >+</button>
                   ) : (
                     <div className="stepper">
-                      <button className={qty > 0 ? 'active' : ''} onClick={() => setQty(p.id, -1)}>−</button>
+                      <button className={qty > 0 ? 'active' : ''} onClick={() => setQty(p.id, -1, p.stock)}>−</button>
                       <span className="qty">{qty}</span>
-                      <button className="active" onClick={() => setQty(p.id, 1)}>+</button>
+                      <button className={atMax ? '' : 'active'} disabled={atMax} onClick={() => setQty(p.id, 1, p.stock)}>+</button>
                     </div>
                   )
                 )}
