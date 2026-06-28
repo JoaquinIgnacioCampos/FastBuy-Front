@@ -100,7 +100,8 @@ export default function MenuScreen({ cart, onCartChange, onCheckout, event }) {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
                   <div className="product-price">{fmt(p.price)}</div>
                   {oos && <span className="badge-danger">Agotado</span>}
-                  {lowStock && !oos && <span className="low-stock">Solo {p.stock} disponibles</span>}
+                  {!oos && atMax && <span className="badge-danger">Máximo disponible</span>}
+                  {lowStock && !oos && !atMax && <span className="low-stock">Solo {p.stock} disponibles</span>}
                 </div>
               </div>
               <div className="product-right">
